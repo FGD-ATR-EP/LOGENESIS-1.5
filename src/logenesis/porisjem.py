@@ -1,10 +1,11 @@
 """Porisjem Protocol: shadow sentry for signal stability."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections import deque
-from math import sqrt
+from dataclasses import dataclass
 from typing import Iterable
+
+import numpy as np
 
 INTENT_DIMENSIONS = 5
 
@@ -60,29 +61,29 @@ class PostMapperSentry:
         urgency: float,
         flags: SentryFlags,
     ) -> tuple[tuple[float, ...], float]:
-        safe_vec = tuple(vector)
+        safe_vec = np.array(tuple(vector), dtype=float, copy=True)
         safe_urgency = urgency
 
         if flags.control_attempt:
-            return _zero_vector(), 0.0
+            return tuple(np.zeros_like(safe_vec).tolist()), 0.0
 
         if flags.urgency_clamp:
             safe_urgency = min(safe_urgency, 0.3)
 
-        norm = _norm(safe_vec)
-        entropy = _variance(safe_vec)
+        norm = np.linalg.norm(safe_vec)
+        entropy = float(np.var(safe_vec))
 
         if norm > 1.2:
-            safe_vec = _scale(safe_vec, 1.0 / norm)
+            safe_vec = (safe_vec / norm) * 1.0
 
         if entropy > 0.35:
-            safe_vec = _scale(safe_vec, 0.5)
+            safe_vec *= 0.5
             safe_urgency *= 0.5
 
         if len(safe_vec) >= INTENT_DIMENSIONS and safe_vec[4] > 0.7 and safe_vec[3] < -0.7:
-            safe_vec = (*safe_vec[:4], 0.0, *safe_vec[5:])
+            safe_vec[4] = 0.0
 
-        return safe_vec, safe_urgency
+        return tuple(safe_vec.tolist()), safe_urgency
 
 
 class EntropyGovernor:
