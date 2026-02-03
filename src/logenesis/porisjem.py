@@ -130,3 +130,23 @@ class PorisjemSystem:
     def govern_core(self, entropy: float, potential: float) -> PhysicsIntervention:
         return self.layer_c.govern(entropy, potential)
 
+
+def _zero_vector() -> tuple[float, ...]:
+    return tuple(0.0 for _ in range(INTENT_DIMENSIONS))
+
+
+def _norm(vector: Iterable[float]) -> float:
+    values = tuple(vector)
+    return sqrt(sum(value * value for value in values))
+
+
+def _variance(vector: Iterable[float]) -> float:
+    values = tuple(vector)
+    if not values:
+        return 0.0
+    mean = sum(values) / len(values)
+    return sum((value - mean) ** 2 for value in values) / len(values)
+
+
+def _scale(vector: Iterable[float], factor: float) -> tuple[float, ...]:
+    return tuple(value * factor for value in vector)
