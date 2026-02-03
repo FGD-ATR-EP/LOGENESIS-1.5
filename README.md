@@ -39,3 +39,4 @@ python src/main.py
 ## Documentation
 
 - [Logenesis Engine & AetherBusExtreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
+- [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
