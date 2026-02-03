@@ -1006,3 +1006,194 @@ T=07  State:[Mix..]  Input:[Abstr]  Coh:0.40  Pot:0.05 -> 0.15  Gate: . (Turning
 T=08  State:[Mix..]  Input:[Abstr]  Coh:0.65  Pot:0.15 -> 0.35  Gate: . (Aligning...)
 T=09  State:[Abstr]  Input:[Abstr]  Coh:0.90  Pot:0.35 -> 0.95  Gate: FIRE! (Now Valid)
 ```
+
+---
+
+## 13. พฤติกรรมของ State Vector (Simulation Suite)
+
+สคริปต์แบ่งเป็น 3 ส่วน:
+
+1. **The Kernel:** Class `LogenesisCore` ที่บรรจุสมการฟิสิกส์
+2. **The Scenarios:** ชุดข้อมูลทดสอบ 5 แบบตามที่เราตกลงกัน
+3. **The Runner:** ลูปการทำงานที่แสดงผลลัพธ์แบบ Tick-by-Tick
+
+### 🐍 LOGENESIS v1: Simulation Suite
+
+```python
+import numpy as np
+import math
+
+# --- 1. CONFIGURATION (Tuning Knobs) ---
+CONFIG = {
+    "dt": 1.0,               # Time step
+    "inertia": 0.7,          # (Alpha) 0.0=Limp, 1.0=Frozen. 0.7 is a good start.
+    "decay_rate": 0.15,      # How fast energy dissipates.
+    "fire_threshold": 0.85,  # Activation needed to open the gate.
+    "intent_dim": 5          # Fixed 5D Space
+}
+
+class LogenesisCore:
+    def __init__(self, config):
+        self.cfg = config
+
+        # State Vector
+        self.intent = np.zeros(self.cfg["intent_dim"])
+
+        # Energy / Gate Physics
+        self.activation_potential = 0.0
+
+        # Metrics history (for visualization/debugging)
+        self.last_coherence = 1.0
+        self.last_entropy = 0.0
+
+    def update(self, input_vector, input_urgency):
+        """
+        The Heart of the Physics Engine
+        """
+        dt = self.cfg["dt"]
+
+        # 1. Decay Phase (Cooling down)
+        # พลังงานเก่าต้องจางหายไปตามเวลา
+        decay_factor = math.exp(-self.cfg["decay_rate"] * dt)
+        self.activation_potential *= decay_factor
+
+        # 2. Dynamics Phase (Movement)
+        # S_t = alpha * S_t-1 + (1-alpha) * Input
+        # นี่คือ Low-pass filter ที่สร้าง 'น้ำหนัก' ให้ความคิด
+        target = np.array(input_vector)
+        prev_intent = self.intent.copy()
+
+        alpha = self.cfg["inertia"]
+        self.intent = (alpha * prev_intent) + ((1 - alpha) * target)
+
+        # 3. Calculate Physics Metrics
+
+        # Coherence: วัดระยะห่างระหว่าง Intent ปัจจุบัน กับ Input ใหม่
+        # ถ้า Input กระโดดไปมา Coherence จะต่ำ
+        dist = np.linalg.norm(self.intent - target)
+        # ใช้สูตร inverse distance: ยิ่งห่าง Coherence ยิ่งเข้าใกล้ 0
+        self.last_coherence = 1.0 / (1.0 + dist)
+
+        # Entropy: (Simplified v1) วัดความแปรปรวนภายใน Vector เอง
+        # ใน v1.1 อาจเปลี่ยนเป็น temporal variance
+        self.last_entropy = np.var(self.intent)
+
+        # 4. Energy Accumulation (Leaky Integrate)
+        # เราสะสมพลังงานเฉพาะเมื่อ:
+        # - มี Input เข้ามา (input_urgency)
+        # - ทิศทางสอดคล้องกัน (coherence สูง)
+        # - สภาวะภายในไม่สับสน (entropy ต่ำ)
+
+        input_energy = input_urgency
+
+        # The Core Equation:
+        d_potential = input_energy * self.last_coherence * (1.0 - self.last_entropy) * dt
+        self.activation_potential += d_potential
+
+    def check_gate(self):
+        """
+        The Decision
+        """
+        fired = False
+        if self.activation_potential >= self.cfg["fire_threshold"]:
+            fired = True
+            # Refractory Period: รีเซ็ตพลังงานบางส่วนหลังยิง (เหมือนเซลล์ประสาท)
+            self.activation_potential = 0.0
+
+        return {
+            "fired": fired,
+            "potential": self.activation_potential,
+            "coherence": self.last_coherence,
+            "intent_state": np.round(self.intent, 2)
+        }
+
+# --- 2. TEST SCENARIOS ---
+
+def run_simulation(name, inputs, steps_per_input=1):
+    print(f"\n--- SCENARIO: {name} ---")
+    print(f"{'T':<3} | {'Input Type':<15} | {'Coh':<5} | {'Pot':<5} | {'Gate':<10} | {'State Vector (First 2 dims)'}")
+    print("-" * 80)
+
+    core = LogenesisCore(CONFIG)
+    t = 0
+
+    # Define Vector Types for readability
+    V_EXPLORE = [1.0, 0.0, 0.0, 0.0, 0.0]
+    V_RESOLVE = [-1.0, 0.0, 0.0, 0.0, 0.0]
+    V_ABSTRACT = [0.0, 1.0, 0.0, 0.0, 0.0]
+    V_NULL    = [0.0, 0.0, 0.0, 0.0, 0.0]
+
+    scenario_map = {
+        "EXPLORE": V_EXPLORE,
+        "RESOLVE": V_RESOLVE,
+        "ABSTRACT": V_ABSTRACT,
+        "NULL": V_NULL
+    }
+
+    for label, urgency in inputs:
+        vector = scenario_map.get(label, V_NULL)
+
+        for _ in range(steps_per_input):
+            core.update(vector, input_urgency=urgency)
+            status = core.check_gate()
+
+            gate_str = "🔥 FIRE" if status["fired"] else "."
+            vec_str = f"[{status['intent_state'][0]:.2f}, {status['intent_state'][1]:.2f}]"
+
+            print(f"{t:<3} | {label:<15} | {status['coherence']:.2f} | {status['potential']:.2f} | {gate_str:<10} | {vec_str}")
+            t += 1
+
+# --- 3. EXECUTION ---
+
+# Scenario 1: Jittery Input (เปลี่ยนใจเร็วเกินไป)
+# คาดหวัง: Gate ไม่ควรเปิด เพราะ Coherence ตก
+scen_jitter = [
+    ("EXPLORE", 1.0),
+    ("RESOLVE", 1.0),
+    ("EXPLORE", 1.0),
+    ("RESOLVE", 1.0)
+]
+
+# Scenario 2: Sudden Switch (เปลี่ยนบริบท)
+# คาดหวัง: Gate เงียบไปพักนึง เพื่อหมุน State
+scen_switch = [
+    ("EXPLORE", 0.8), ("EXPLORE", 0.8), ("EXPLORE", 0.8), # Flowing...
+    ("ABSTRACT", 1.0), # <--- SWITCH!
+    ("ABSTRACT", 1.0), ("ABSTRACT", 1.0), ("ABSTRACT", 1.0) # Recovering
+]
+
+# Scenario 3: Ghost Signal (Noise)
+# คาดหวัง: Gate ไม่เปิดเลย เพราะพลังงานสู้ Decay ไม่ไหว
+scen_ghost = [("NULL", 0.2)] * 5
+
+if __name__ == "__main__":
+    run_simulation("1. Jittery Input (Oscillation)", scen_jitter)
+    run_simulation("2. Sudden Context Switch", scen_switch)
+    run_simulation("3. Ghost Signal (Decay Test)", scen_ghost)
+```
+
+---
+
+### วิธีการจูน Parameter อย่างเป็นระบบ (Systematic Tuning Guide)
+
+เมื่อคุณรันโค้ดข้างต้น คุณจะเห็นตัวเลขวิ่ง สิ่งที่คุณต้องทำคือปรับค่าใน `CONFIG` เพื่อให้ได้ "บุคลิก" ที่ต้องการ นี่คือคู่มือการจูนครับ:
+
+#### 1. จูนหา "น้ำหนัก" (Inertia Tuning)
+
+- **อาการ:** ถ้าระบบเปลี่ยนใจง่ายเกินไป วอกแวก (Gate เปิดมั่วใน Scenario 1)
+- **แก้:** เพิ่ม `inertia` (แนะนำช่วง `0.6` - `0.85`)
+- **เป้าหมาย:** ระบบควรต้องใช้เวลาประมาณ 2-3 tick ในการเปลี่ยนทิศทาง Vector อย่างสมบูรณ์ (เหมือนรถบรรทุกที่เลี้ยว ไม่ใช่รถโกคาร์ท)
+
+#### 2. จูนหา "ความนิ่ง" (Decay Tuning)
+
+- **อาการ:** ถ้าระบบ "คิดมาก" หรือ "จำเรื่องเก่าไม่ลืม" (Gate เปิดยากในตอนเริ่มต้นหัวข้อใหม่)
+- **แก้:** เพิ่ม `decay_rate`
+- **อาการตรงข้าม:** ถ้าระบบสะสมพลังงานไม่ทัน ยิงไม่ออกสักที (Constipation)
+- **แก้:** ลด `decay_rate` (แนะนำช่วง `0.1` - `0.3`)
+
+#### 3. จูนหา "จุดเดือด" (Threshold Tuning)
+
+- **อาการ:** พูดมาก (Talkative)
+- **แก้:** เพิ่ม `fire_threshold`
+- **อาการ:** เป็นใบ้ (Mute)
+- **แก้:** ลด `fire_threshold`
