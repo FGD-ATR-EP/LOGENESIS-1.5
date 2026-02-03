@@ -5,7 +5,8 @@ from logenesis.core.checker import Checker
 from logenesis.core.firma import Firma
 from logenesis.core.inspira import Inspira
 from logenesis.learning.ai_learning_module import LearningModule
-from logenesis.resonance.mapper import ResonanceAtom, ResonanceMapper
+from logenesis.porisjem import PorisjemSystem
+from logenesis.resonance.mapper import IntentVector, ResonanceAtom, ResonanceMapper
 
 
 def run_lifecycle() -> None:
@@ -14,6 +15,7 @@ def run_lifecycle() -> None:
     firma = Firma()
     checker = Checker(rules=("respect-ethical-boundary",))
     learner = LearningModule()
+    porisjem = PorisjemSystem()
     mapper = ResonanceMapper(
         atoms=(
             ResonanceAtom("ทำยังไง", (1, 1, 0, -1, 1), 0.6, 1.0),
@@ -22,7 +24,13 @@ def run_lifecycle() -> None:
         )
     )
 
-    resonance = mapper.map("ช่วยที อธิบาย")
+    text_signal = "ช่วยที อธิบาย"
+    flags = porisjem.scan_input(text_signal)
+    resonance = mapper.map(text_signal)
+    safe_vector, safe_urgency = porisjem.sanitize_signal(
+        resonance.values, resonance.urgency, flags
+    )
+    safe_resonance = IntentVector(values=safe_vector, urgency=safe_urgency)
     intent = inspira.validate("assist with system setup")
     feasibility = firma.evaluate(intent.statement)
     report = checker.assess(intent, feasibility)
@@ -40,6 +48,8 @@ def run_lifecycle() -> None:
         "report": report,
         "learning": update,
         "resonance": resonance,
+        "porisjem_flags": flags,
+        "safe_resonance": safe_resonance,
         "outcome": outcome,
     }
     print(summary)
