@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "id": "respect-ethical-boundary",
+      "description": "Ensure intent processing respects declared ethical constraints."
+    }
+  ],
+  "version": "1.0"
+}

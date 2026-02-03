@@ -1,0 +1,7 @@
+uvloop
+orjson
+msgpack
+pydantic>=2.0
+nats-py
+python-dotenv
+rapidfuzz
