@@ -35,3 +35,7 @@ LOGENESIS-1.5/
 ```bash
 python src/main.py
 ```
+
+## Documentation
+
+- [Logenesis Engine & AetherBusExtreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
