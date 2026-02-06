@@ -88,7 +88,7 @@ class PostMapperSentry:
              # Force Neutralize Active
              safe_vec[4] = 0.0
 
-        return safe_vec, safe_urgency
+        return tuple(safe_vec.tolist()), safe_urgency
 
 # --- LAYER C: Entropy Governor (Homeostasis) ---
 
