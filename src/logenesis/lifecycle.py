@@ -8,6 +8,7 @@ from logenesis.core.firma import Firma
 from logenesis.core.inspira import Inspira
 from logenesis.learning.ai_learning_module import LearningModule
 from logenesis.porisjem import PorisjemSystem
+from logenesis.reasoning import build_default_reasoner
 from logenesis.resonance.mapper import IntentVector, ResonanceAtom, ResonanceMapper
 
 
@@ -18,6 +19,7 @@ def run_lifecycle() -> None:
     checker = Checker(rules=("respect-ethical-boundary",))
     learner = LearningModule()
     porisjem = PorisjemSystem()
+    reasoner = build_default_reasoner()
     mapper = ResonanceMapper(
         atoms=(
             ResonanceAtom("ทำยังไง", (1, 1, 0, -1, 1), 0.6, 1.0),
@@ -47,6 +49,8 @@ def run_lifecycle() -> None:
     update = learner.record("bootstrap", weight=0.5)
     mapper.update_weights(outcome_feedback=1.0 if report.allowed else -0.1)
 
+    reasoning = reasoner.internal_monologue("Design safe response strategy")
+
     if report.allowed:
         outcome = "approved"
     else:
@@ -60,6 +64,7 @@ def run_lifecycle() -> None:
         "resonance": resonance,
         "porisjem_flags": flags,
         "safe_resonance": safe_resonance,
+        "reasoning": reasoning,
         "outcome": outcome,
     }
     print(summary)
