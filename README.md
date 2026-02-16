@@ -36,6 +36,9 @@ LOGENESIS-1.5/
 │  │  │  └─ mapper.py
 │  │  ├─ porisjem.py
 │  │  ├─ lifecycle.py
+│  │  ├─ reasoning/
+│  │  │  ├─ __init__.py
+│  │  │  └─ cogitator_x.py
 │  │  └─ __init__.py
 │  ├─ main.py
 │  └─ simulate_porisjem.py
