@@ -1,174 +1,154 @@
-"""Cogitator-X reasoning primitives.
-
-`ReasoningEntity.generate_next_thoughts` is intentionally designed as an
-extension point. Subclasses can override it to produce domain-aware candidate
-thoughts, but the default implementation keeps the search path testable by
-emitting non-complete drafts before final answer candidates.
-"""
-
+"""Cogitator-X reasoning architecture with process-level supervision."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Sequence
+from dataclasses import dataclass
+from typing import Protocol, Sequence
+
+
+class StepEvaluator(Protocol):
+    """Protocol for process reward evaluation."""
+
+    def evaluate_step(self, thought_step: str) -> float:
+        """Return a normalized score in [0, 1] for a thought step."""
+
+
+class KeywordProcessRewardModel:
+    """Deterministic PRM approximation for local reasoning traces."""
+
+    def __init__(self, positive_markers: Sequence[str], negative_markers: Sequence[str]) -> None:
+        self._positive_markers = tuple(marker.lower() for marker in positive_markers)
+        self._negative_markers = tuple(marker.lower() for marker in negative_markers)
+
+    def evaluate_step(self, thought_step: str) -> float:
+        lowered = thought_step.lower()
+        positive_hits = sum(marker in lowered for marker in self._positive_markers)
+        negative_hits = sum(marker in lowered for marker in self._negative_markers)
+
+        raw_score = 0.5 + (0.15 * positive_hits) - (0.2 * negative_hits)
+        return _clamp(raw_score, 0.0, 1.0)
 
 
 @dataclass(frozen=True)
 class ReasoningConfig:
-    """Settings for iterative internal monologue."""
+    """Inference-time scaling configuration."""
 
-    search_budget: int = 6
-    acceptance_threshold: float = 0.82
-    max_thinking_tokens: int = 120
+    max_thinking_tokens: int = 5000
+    search_budget: int = 12
+    acceptance_threshold: float = 0.55
 
 
-@dataclass
+@dataclass(frozen=True)
 class ReasoningResult:
-    """Final output of the internal monologue routine."""
+    """Public, verifiable output from a hidden reasoning pass."""
 
-    final_answer: str
+    answer: str
+    solved: bool
+    explored_steps: int
+    best_score: float
     trace: tuple[str, ...]
-    rejected_candidates: tuple[str, ...]
-    stopped_due_to_budget: bool
 
 
-@dataclass
 class ReasoningEntity:
-    """Performs bounded thought search using configurable heuristics."""
+    """System-2 style reasoner with search, reflection, and backtracking."""
 
-    config: ReasoningConfig = field(default_factory=ReasoningConfig)
+    def __init__(self, evaluator: StepEvaluator, config: ReasoningConfig | None = None) -> None:
+        self._evaluator = evaluator
+        self._config = config or ReasoningConfig()
+        self._thought_tree: list[str] = []
 
-    def internal_monologue(self, prompt: str) -> ReasoningResult:
-        """Run iterative thought search and return trace + selected answer."""
+    @property
+    def thought_tree(self) -> tuple[str, ...]:
+        """Return immutable access to current search trace."""
+        return tuple(self._thought_tree)
 
-        trace: list[str] = []
-        rejected_candidates: list[str] = []
-        final_answer = "ANSWER: Unable to complete reasoning within constraints."
-        stopped_due_to_budget = False
+    def evaluate_life(self, step_content: str, criterion: str = "process_reward") -> float | bool:
+        """Evaluate a candidate thought by PRM score or terminal completeness."""
+        if criterion == "process_reward":
+            return self._evaluator.evaluate_step(step_content)
 
-        for iteration in range(self.config.search_budget):
-            candidates = self.generate_next_thoughts(
-                prompt,
-                current_state=tuple(trace),
-                iteration=iteration,
-                excluded_candidates=tuple(rejected_candidates),
-            )
-            if not candidates:
+        if criterion == "completeness":
+            return "ANSWER:" in step_content
+
+        raise ValueError(f"Unsupported criterion: {criterion}")
+
+    def internal_monologue(self, problem_input: str) -> ReasoningResult:
+        """Run a bounded search loop that supports self-correction."""
+        self._thought_tree.clear()
+        current_state = problem_input.strip()
+        best_score = 0.0
+
+        for step in range(self._config.search_budget):
+            candidates = self.generate_next_thoughts(current_state)
+
+            best_candidate = ""
+            candidate_score = -1.0
+            for candidate in candidates:
+                score = float(self.evaluate_life(candidate, "process_reward"))
+                if score > candidate_score:
+                    candidate_score = score
+                    best_candidate = candidate
+
+            if candidate_score < self._config.acceptance_threshold:
+                self.experience_empathy(
+                    previous_state=current_state,
+                    rejected_candidate=best_candidate,
+                    score=candidate_score,
+                )
                 continue
 
-            accepted_candidate: str | None = None
-            reflective_pool: list[tuple[float, str]] = []
+            current_state = best_candidate
+            self._thought_tree.append(current_state)
+            best_score = max(best_score, candidate_score)
 
-            for candidate in candidates:
-                score = self.evaluate_life(candidate)
-                complete = self._is_complete(candidate)
-                if complete and score >= self.config.acceptance_threshold:
-                    accepted_candidate = candidate
-                    break
-                reflective_pool.append((score, candidate))
-
-            if accepted_candidate is not None:
-                if not self._can_fit_tokens(trace, accepted_candidate):
-                    stopped_due_to_budget = True
-                    break
-                trace.append(accepted_candidate)
-                final_answer = accepted_candidate
+            if bool(self.evaluate_life(current_state, "completeness")):
                 return ReasoningResult(
-                    final_answer=final_answer,
-                    trace=tuple(trace),
-                    rejected_candidates=tuple(rejected_candidates),
-                    stopped_due_to_budget=stopped_due_to_budget,
+                    answer=self.synthesize_answer(current_state),
+                    solved=True,
+                    explored_steps=step + 1,
+                    best_score=best_score,
+                    trace=self.thought_tree,
                 )
 
-            if reflective_pool:
-                _, best_reflection = max(reflective_pool, key=lambda item: item[0])
-                if self._can_fit_tokens(trace, best_reflection):
-                    trace.append(best_reflection)
-                    rejected_candidates.append(best_reflection)
-                else:
-                    stopped_due_to_budget = True
-                    break
-
-            self.experience_empathy(prompt, trace)
-
         return ReasoningResult(
-            final_answer=final_answer,
-            trace=tuple(trace),
-            rejected_candidates=tuple(rejected_candidates),
-            stopped_due_to_budget=stopped_due_to_budget,
+            answer=self.synthesize_answer(current_state),
+            solved=False,
+            explored_steps=self._config.search_budget,
+            best_score=best_score,
+            trace=self.thought_tree,
         )
 
-    def generate_next_thoughts(
-        self,
-        prompt: str,
-        current_state: Sequence[str],
-        iteration: int = 0,
-        excluded_candidates: Sequence[str] | None = None,
-    ) -> list[str]:
-        """Generate diverse candidate thoughts.
+    def generate_next_thoughts(self, state: str) -> tuple[str, ...]:
+        """Create multiple candidate next steps to approximate Tree-of-Thought."""
+        return (
+            f"Inspect constraints from: {state}",
+            f"Derive intermediate claim from: {state}",
+            f"ANSWER: Consolidated solution for {state}",
+        )
 
-        Subclasses should override this method to provide richer and
-        domain-specific candidate generation. The default implementation keeps
-        search/reflection behavior observable by prioritizing drafts in early
-        iterations and only surfacing `ANSWER:` candidates after at least one
-        reflection cycle.
-        """
+    def experience_empathy(self, previous_state: str, rejected_candidate: str, score: float) -> None:
+        """Apply lightweight policy shift to avoid repeating low-value branches."""
+        note = (
+            "REFLECT: avoid branch "
+            f"'{rejected_candidate}' from '{previous_state}' with score={score:.2f}"
+        )
+        self._thought_tree.append(note)
 
-        excluded = set(excluded_candidates or ())
-        prefix = f"step-{iteration + 1}"
+    def synthesize_answer(self, terminal_state: str) -> str:
+        """Convert final search state into user-facing summary."""
+        if "ANSWER:" in terminal_state:
+            return terminal_state.split("ANSWER:", maxsplit=1)[1].strip()
 
-        draft_templates = [
-            f"{prefix} ANALYSIS: identify constraints in '{prompt}'.",
-            f"{prefix} REFLECTION: compare two plausible approaches for '{prompt}'.",
-            f"{prefix} DRAFT: propose a safe intermediate plan for '{prompt}'.",
-        ]
+        return f"Refined direction: {terminal_state}"
 
-        answer_templates = [
-            f"{prefix} ANSWER: Provide a concise, policy-aligned response for '{prompt}'.",
-            f"{prefix} ANSWER: Summarize the best next action for '{prompt}'.",
-        ]
 
-        candidates = draft_templates.copy()
-        if iteration > 0 or current_state:
-            candidates.extend(answer_templates)
+def build_default_reasoner() -> ReasoningEntity:
+    """Factory for a ready-to-use Cogitator-X reasoner."""
+    evaluator = KeywordProcessRewardModel(
+        positive_markers=("answer", "derive", "constraint", "solution"),
+        negative_markers=("ignore", "hallucination", "contradiction"),
+    )
+    return ReasoningEntity(evaluator=evaluator)
 
-        unique_candidates: list[str] = []
-        for candidate in candidates:
-            if candidate in excluded:
-                continue
-            unique_candidates.append(candidate)
 
-        return unique_candidates
-
-    def experience_empathy(self, prompt: str, trace: Sequence[str]) -> float:
-        """Reflect on user-centric framing of the in-progress trace."""
-
-        empathy_tokens = ["safe", "help", "respect", "align"]
-        joined = f"{prompt} {' '.join(trace)}".lower()
-        hits = sum(1 for token in empathy_tokens if token in joined)
-        return min(1.0, 0.2 + (hits * 0.2))
-
-    def evaluate_life(self, candidate: str) -> float:
-        """Heuristic scoring used by `acceptance_threshold` in config."""
-
-        lower = candidate.lower()
-        score = 0.35
-        if "analysis" in lower or "reflection" in lower or "draft" in lower:
-            score += 0.3
-        if "safe" in lower or "policy" in lower or "aligned" in lower:
-            score += 0.2
-        if "answer:" in lower:
-            score += 0.3
-        return min(1.0, score)
-
-    def _can_fit_tokens(self, trace: Sequence[str], candidate: str) -> bool:
-        current_tokens = self._token_count(" ".join(trace))
-        candidate_tokens = self._token_count(candidate)
-        return (current_tokens + candidate_tokens) <= self.config.max_thinking_tokens
-
-    @staticmethod
-    def _token_count(text: str) -> int:
-        return len([part for part in text.split() if part.strip()])
-
-    @staticmethod
-    def _is_complete(candidate: str) -> bool:
-        return "answer:" in candidate.lower()
+def _clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(value, upper))
