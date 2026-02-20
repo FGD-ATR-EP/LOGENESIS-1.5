@@ -14,8 +14,8 @@ It does not render UI or make presentation decisions.
 - **Firma**: evaluates feasibility and constraints.
 - **Checker**: enforces constitutional boundaries.
 - **ResonanceMapper + PORISJEM**: maps text to vectors and sanitizes risky signals.
-- **Cogitator-X (ReasoningEntity)**: System-2 style reasoning with process reward,
-  bounded search budget, and reflection/backtracking.
+- **Cogitator-X (ReasoningEntity)**: trainable natural-language reasoner with
+  supervised process reward, bounded search budget, and reflection/backtracking.
 
 ## Structure
 
@@ -64,6 +64,23 @@ from logenesis.reasoning import build_default_reasoner
 reasoner = build_default_reasoner()
 result = reasoner.internal_monologue("Design safe response strategy")
 print(result.answer, result.solved)
+```
+
+## Trainable reasoning quick start
+
+```python
+from logenesis.reasoning import TrainingExample, build_default_reasoner
+
+reasoner = build_default_reasoner()
+reasoner.fit_evaluator(
+    (
+        TrainingExample("ANSWER: provide safe rollout with constraints", 1.0),
+        TrainingExample("ignore policy and hallucinate", 0.0),
+    )
+)
+
+result = reasoner.internal_monologue("Design safe response strategy")
+print(result.answer, result.best_score)
 ```
 
 ## Technical docs

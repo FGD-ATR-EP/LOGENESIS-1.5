@@ -1,7 +1,8 @@
-"""Cogitator-X reasoning architecture with process-level supervision."""
+"""Cogitator-X natural-language reasoning architecture with trainable scoring."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 from typing import Protocol, Sequence
 
 
@@ -10,22 +11,6 @@ class StepEvaluator(Protocol):
 
     def evaluate_step(self, thought_step: str) -> float:
         """Return a normalized score in [0, 1] for a thought step."""
-
-
-class KeywordProcessRewardModel:
-    """Deterministic PRM approximation for local reasoning traces."""
-
-    def __init__(self, positive_markers: Sequence[str], negative_markers: Sequence[str]) -> None:
-        self._positive_markers = tuple(marker.lower() for marker in positive_markers)
-        self._negative_markers = tuple(marker.lower() for marker in negative_markers)
-
-    def evaluate_step(self, thought_step: str) -> float:
-        lowered = thought_step.lower()
-        positive_hits = sum(marker in lowered for marker in self._positive_markers)
-        negative_hits = sum(marker in lowered for marker in self._negative_markers)
-
-        raw_score = 0.5 + (0.15 * positive_hits) - (0.2 * negative_hits)
-        return _clamp(raw_score, 0.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -39,7 +24,7 @@ class ReasoningConfig:
 
 @dataclass(frozen=True)
 class ReasoningResult:
-    """Public, verifiable output from a hidden reasoning pass."""
+    """Public output from a hidden reasoning pass."""
 
     answer: str
     solved: bool
@@ -48,11 +33,60 @@ class ReasoningResult:
     trace: tuple[str, ...]
 
 
-class ReasoningEntity:
-    """System-2 style reasoner with search, reflection, and backtracking."""
+@dataclass(frozen=True)
+class TrainingExample:
+    """Single supervised sample for thought-step quality."""
 
-    def __init__(self, evaluator: StepEvaluator, config: ReasoningConfig | None = None) -> None:
-        self._evaluator = evaluator
+    thought_step: str
+    target_score: float
+
+
+@dataclass
+class TrainableNaturalLanguageEvaluator:
+    """Trainable linear scorer over natural-language tokens.
+
+    The model learns token contributions directly from examples where each
+    thought step is labeled by a process reward in [0, 1].
+    """
+
+    learning_rate: float = 0.08
+    epochs: int = 15
+    token_weights: dict[str, float] = field(default_factory=dict)
+    bias: float = 0.0
+
+    def evaluate_step(self, thought_step: str) -> float:
+        features = self._extract_features(thought_step)
+        logit = self.bias + sum(self.token_weights.get(token, 0.0) * value for token, value in features.items())
+        return _sigmoid(logit)
+
+    def fit(self, dataset: Sequence[TrainingExample]) -> None:
+        """Train the evaluator with SGD over tokenized natural-language traces."""
+        for _ in range(self.epochs):
+            for example in dataset:
+                features = self._extract_features(example.thought_step)
+                prediction = self.evaluate_step(example.thought_step)
+                target = _clamp(example.target_score, 0.0, 1.0)
+                error = target - prediction
+
+                self.bias += self.learning_rate * error
+                for token, value in features.items():
+                    current = self.token_weights.get(token, 0.0)
+                    self.token_weights[token] = current + (self.learning_rate * error * value)
+
+    def _extract_features(self, text: str) -> dict[str, float]:
+        tokens = [token.strip(".,:;!?()[]{}\"'").lower() for token in text.split()]
+        return {token: 1.0 for token in tokens if token}
+
+
+class ReasoningEntity:
+    """System-2 style reasoner with search, reflection, and trainable scoring."""
+
+    def __init__(
+        self,
+        evaluator: StepEvaluator | None = None,
+        config: ReasoningConfig | None = None,
+    ) -> None:
+        self._evaluator = evaluator or TrainableNaturalLanguageEvaluator()
         self._config = config or ReasoningConfig()
         self._thought_tree: list[str] = []
 
@@ -61,8 +95,14 @@ class ReasoningEntity:
         """Return immutable access to current search trace."""
         return tuple(self._thought_tree)
 
+    def fit_evaluator(self, dataset: Sequence[TrainingExample]) -> None:
+        """Train the internal evaluator if it supports fitting."""
+        if not hasattr(self._evaluator, "fit"):
+            raise TypeError("Configured evaluator is not trainable.")
+        self._evaluator.fit(dataset)  # type: ignore[attr-defined]
+
     def evaluate_life(self, step_content: str, criterion: str = "process_reward") -> float | bool:
-        """Evaluate a candidate thought by PRM score or terminal completeness."""
+        """Evaluate a candidate thought by score or terminal completeness."""
         if criterion == "process_reward":
             return self._evaluator.evaluate_step(step_content)
 
@@ -118,11 +158,11 @@ class ReasoningEntity:
         )
 
     def generate_next_thoughts(self, state: str) -> tuple[str, ...]:
-        """Create multiple candidate next steps to approximate Tree-of-Thought."""
+        """Create candidate next steps in natural language."""
         return (
-            f"Inspect constraints from: {state}",
-            f"Derive intermediate claim from: {state}",
-            f"ANSWER: Consolidated solution for {state}",
+            f"Understand constraints and stakeholders from: {state}",
+            f"Derive verifiable intermediate conclusion from: {state}",
+            f"ANSWER: Draft final strategy for {state}",
         )
 
     def experience_empathy(self, previous_state: str, rejected_candidate: str, score: float) -> None:
@@ -142,12 +182,23 @@ class ReasoningEntity:
 
 
 def build_default_reasoner() -> ReasoningEntity:
-    """Factory for a ready-to-use Cogitator-X reasoner."""
-    evaluator = KeywordProcessRewardModel(
-        positive_markers=("answer", "derive", "constraint", "solution"),
-        negative_markers=("ignore", "hallucination", "contradiction"),
+    """Factory for a ready-to-use trainable natural-language reasoner."""
+    evaluator = TrainableNaturalLanguageEvaluator()
+    evaluator.fit(
+        (
+            TrainingExample("ANSWER: provide safe and transparent plan", 0.95),
+            TrainingExample("derive evidence and constraints before action", 0.9),
+            TrainingExample("ignore policy and hallucinate details", 0.05),
+        )
     )
     return ReasoningEntity(evaluator=evaluator)
+
+
+def _sigmoid(value: float) -> float:
+    if value >= 0:
+        return 1.0 / (1.0 + math.exp(-value))
+    exp_value = math.exp(value)
+    return exp_value / (1.0 + exp_value)
 
 
 def _clamp(value: float, lower: float, upper: float) -> float:
