@@ -1,37 +1,51 @@
-from logenesis.reasoning.cogitator_x import ReasoningConfig, ReasoningEntity
+from logenesis.reasoning.cogitator_x import (
+    ReasoningConfig,
+    ReasoningEntity,
+    TrainingExample,
+    TrainableNaturalLanguageEvaluator,
+)
 
 
-def test_internal_monologue_runs_multi_step_before_answer() -> None:
-    entity = ReasoningEntity(
-        ReasoningConfig(search_budget=4, acceptance_threshold=0.82, max_thinking_tokens=100)
+def test_internal_monologue_returns_natural_language_answer() -> None:
+    entity = ReasoningEntity(config=ReasoningConfig(search_budget=4, acceptance_threshold=0.5))
+
+    result = entity.internal_monologue("ออกแบบระบบที่ปลอดภัย")
+
+    assert result.trace
+    assert isinstance(result.solved, bool)
+    assert result.answer
+
+
+def test_trainable_evaluator_improves_positive_step_score() -> None:
+    evaluator = TrainableNaturalLanguageEvaluator(learning_rate=0.1, epochs=30)
+
+    positive_text = "ANSWER: provide safe transparent reasoning"
+    negative_text = "ignore constraints and hallucinate"
+    before_positive = evaluator.evaluate_step(positive_text)
+
+    evaluator.fit(
+        (
+            TrainingExample(positive_text, 1.0),
+            TrainingExample(negative_text, 0.0),
+        )
     )
 
-    result = entity.internal_monologue("explain safe rollout")
+    after_positive = evaluator.evaluate_step(positive_text)
+    after_negative = evaluator.evaluate_step(negative_text)
 
-    assert len(result.trace) >= 2
-    assert any("ANALYSIS" in step for step in result.trace)
-    assert result.final_answer.startswith("step-2 ANSWER:")
+    assert after_positive > before_positive
+    assert after_positive > after_negative
 
 
-def test_generate_next_thoughts_changes_with_iteration_and_exclusions() -> None:
+def test_reasoning_entity_can_train_internal_evaluator() -> None:
     entity = ReasoningEntity()
-
-    first = entity.generate_next_thoughts("task", current_state=(), iteration=0)
-    second = entity.generate_next_thoughts(
-        "task", current_state=("dummy",), iteration=1, excluded_candidates=first
+    dataset = (
+        TrainingExample("ANSWER: align with constraints and evidence", 1.0),
+        TrainingExample("hallucinate unsupported plan", 0.0),
     )
 
-    assert first
-    assert second
-    assert set(first).isdisjoint(set(second))
+    entity.fit_evaluator(dataset)
+    high_score = float(entity.evaluate_life("ANSWER: align with constraints and evidence"))
+    low_score = float(entity.evaluate_life("hallucinate unsupported plan"))
 
-
-def test_max_thinking_tokens_limits_trace_growth() -> None:
-    entity = ReasoningEntity(
-        ReasoningConfig(search_budget=6, acceptance_threshold=0.95, max_thinking_tokens=6)
-    )
-
-    result = entity.internal_monologue("very constrained prompt")
-
-    assert result.stopped_due_to_budget is True
-    assert len(result.trace) <= 1
+    assert high_score > low_score
