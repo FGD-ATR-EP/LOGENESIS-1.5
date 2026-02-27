@@ -61,7 +61,7 @@ class PostMapperSentry:
         # 1. Apply Layer A Flags (จัดการผลจาก Layer A ก่อน)
         if flags.control_attempt:
             safe_urgency = 0.0 # ตัดสัญญาณทิ้ง (ได้ยินแต่ไม่รู้สึก)
-            return np.zeros_like(safe_vec), 0.0
+            return tuple(safe_vec.tolist()), safe_urgency
 
         if flags.urgency_clamp:
             safe_urgency = min(safe_urgency, 0.3) # Clamp ไว้ที่ระดับต่ำ
