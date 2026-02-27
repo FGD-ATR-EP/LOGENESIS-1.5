@@ -20,5 +20,6 @@ def test_post_mapper_sentry_handles_short_vectors_without_crashing() -> None:
 
     safe_vec, safe_urgency = sentry.audit(short_vector, urgency=0.6, flags=SentryFlags())
 
+    assert isinstance(safe_vec, tuple)
     assert len(safe_vec) == 3
     assert np.isclose(safe_urgency, 0.6)
