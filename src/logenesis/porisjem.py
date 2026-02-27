@@ -1,6 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
 from collections import deque
+from typing import Sequence
 
 # --- Data Structures for Sentry Communication ---
 
@@ -47,13 +48,14 @@ class PreResonanceSentry:
 # --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
 
 class PostMapperSentry:
-    def audit(self, vector: np.ndarray, urgency: float, flags: SentryFlags):
+    def audit(self, vector: Sequence[float] | np.ndarray, urgency: float, flags: SentryFlags):
         """
         ตรวจ Vector ที่ออกมาจาก Mapper ก่อนเข้าสู่ Core
         คืนค่า: (Modified Vector, Modified Urgency)
         """
-        # Copy เพื่อไม่กระทบต้นฉบับถ้าไม่จำเป็น
-        safe_vec = vector.copy()
+        # Normalize to ndarray so callers can pass tuple/list directly.
+        # This keeps mapper and sentry interfaces compatible.
+        safe_vec = np.asarray(vector, dtype=float).copy()
         safe_urgency = urgency
 
         # 1. Apply Layer A Flags (จัดการผลจาก Layer A ก่อน)
@@ -84,7 +86,7 @@ class PostMapperSentry:
         # Rule B3: Dangerous Combo (Active + Divergent = ก้าวร้าวไร้ทิศทาง)
         # สมมติ Index: [0:exp, 1:abs, 2:sub, 3:div, 4:act]
         # Active(4) > 0.7 AND Divergent(3) < -0.7 (สมมติ divergent คือ -1)
-        if safe_vec[4] > 0.7 and safe_vec[3] < -0.7:
+        if safe_vec.size >= 5 and safe_vec[4] > 0.7 and safe_vec[3] < -0.7:
              # Force Neutralize Active
              safe_vec[4] = 0.0
 
