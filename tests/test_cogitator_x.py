@@ -49,3 +49,13 @@ def test_reasoning_entity_can_train_internal_evaluator() -> None:
     low_score = float(entity.evaluate_life("hallucinate unsupported plan"))
 
     assert high_score > low_score
+
+
+def test_internal_monologue_records_reflection_when_candidates_are_rejected() -> None:
+    entity = ReasoningEntity(config=ReasoningConfig(search_budget=2, acceptance_threshold=1.1))
+
+    result = entity.internal_monologue("design robust rollout")
+
+    assert result.solved is False
+    assert result.trace
+    assert all(step.startswith("REFLECT:") for step in result.trace)

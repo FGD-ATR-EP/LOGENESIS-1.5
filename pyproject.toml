@@ -5,4 +5,3 @@ line-length = 88
 strict = true
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"

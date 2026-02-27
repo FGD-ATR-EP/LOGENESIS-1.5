@@ -30,15 +30,12 @@ LOGENESIS-1.5/
 │  │  ├─ learning/
 │  │  │  └─ ai_learning_module.py
 │  │  ├─ reasoning/
-│  │  │  ├─ cogitator_x.py
-│  │  │  └─ __init__.py
+│  │  │  ├─ __init__.py
+│  │  │  └─ cogitator_x.py
 │  │  ├─ resonance/
 │  │  │  └─ mapper.py
 │  │  ├─ porisjem.py
 │  │  ├─ lifecycle.py
-│  │  ├─ reasoning/
-│  │  │  ├─ __init__.py
-│  │  │  └─ cogitator_x.py
 │  │  └─ __init__.py
 │  ├─ main.py
 │  └─ simulate_porisjem.py
@@ -85,7 +82,7 @@ print(result.answer, result.best_score)
 
 ## Technical docs
 
-- [Logenesis Engine & AetherBusExtreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
+- [Logenesis Engine & AetherBus Extreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
 - [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
 
 ## Next extensions

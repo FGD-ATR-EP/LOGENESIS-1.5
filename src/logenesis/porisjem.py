@@ -115,7 +115,7 @@ class EntropyGovernor:
             # ลด Potential: อย่าเพิ่งพูดตอนงง
             intervention.potential_dampener = 0.8
 
-        # Condition 2: Constipation (พลังงานสูงแต่ไม่ยิง)
+        # Condition 2: Stagnation (พลังงานสูงแต่ยังไม่ปลดปล่อย)
         if core_potential > 0.7 and avg_entropy < 0.2:
             # อาจจะติด Inertia หรือ Threshold สูงไป
             # Governor ช่วยดันนิดหน่อย (ลด Inertia ลง)
