@@ -1147,11 +1147,12 @@ def run_simulation(name, inputs, steps_per_input=1):
 
 # Scenario 1: Jittery Input (เปลี่ยนใจเร็วเกินไป)
 # คาดหวัง: Gate ไม่ควรเปิด เพราะ Coherence ตก
+# หมายเหตุ: ลด urgency ให้ต่ำกว่า threshold สะสม เพื่อให้เคสนี้ทดสอบ anti-oscillation ได้จริง
 scen_jitter = [
-    ("EXPLORE", 1.0),
-    ("RESOLVE", 1.0),
-    ("EXPLORE", 1.0),
-    ("RESOLVE", 1.0)
+    ("EXPLORE", 0.4),
+    ("RESOLVE", 0.4),
+    ("EXPLORE", 0.4),
+    ("RESOLVE", 0.4)
 ]
 
 # Scenario 2: Sudden Switch (เปลี่ยนบริบท)
