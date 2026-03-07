@@ -5,6 +5,10 @@ from dataclasses import dataclass, field
 import difflib
 from typing import Iterable, Sequence
 
+import numpy as np
+
+from .atoms import DEFAULT_RESONANCE_ATOMS
+
 INTENT_DIMENSIONS = 5
 
 
@@ -35,11 +39,28 @@ def resonance_score(text: str, pattern: str) -> float:
     return difflib.SequenceMatcher(None, text, pattern).ratio()
 
 
+def build_default_atoms() -> tuple[ResonanceAtom, ...]:
+    """Build mutable atom instances from default specs."""
+    return tuple(
+        ResonanceAtom(
+            pattern=atom.pattern,
+            vector=atom.vector,
+            urgency=atom.urgency,
+            weight=atom.weight,
+        )
+        for atom in DEFAULT_RESONANCE_ATOMS
+    )
+
+
 class ResonanceMapper:
     """Map text to intent physics using deterministic resonance."""
 
-    def __init__(self, atoms: Iterable[ResonanceAtom], threshold: float = 0.65) -> None:
-        self._atoms = list(atoms)
+    def __init__(
+        self,
+        atoms: Iterable[ResonanceAtom] | None = None,
+        threshold: float = 0.65,
+    ) -> None:
+        self._atoms = list(atoms if atoms is not None else build_default_atoms())
         self._threshold = threshold
         self._active: list[tuple[ResonanceAtom, float]] = []
 
@@ -47,6 +68,29 @@ class ResonanceMapper:
     def atoms(self) -> Sequence[ResonanceAtom]:
         """Return the current resonance atoms."""
         return tuple(self._atoms)
+
+    def calculate_resonance(self, text: str) -> dict[str, float]:
+        """Calculate weighted fuzzy resonance score for each atom."""
+        return {
+            atom.pattern: resonance_score(text, atom.pattern) * atom.weight
+            for atom in self._atoms
+        }
+
+    def generate_intent_vector(self, text: str) -> list[float]:
+        """Generate normalized 5D vector from atoms above threshold."""
+        total_force = np.zeros(INTENT_DIMENSIONS, dtype=np.float64)
+
+        for atom in self._atoms:
+            score = resonance_score(text, atom.pattern) * atom.weight
+            if score <= self._threshold:
+                continue
+            total_force += score * np.array(atom.vector)
+
+        norm = np.linalg.norm(total_force)
+        if norm > 0:
+            total_force = total_force / norm
+
+        return total_force.tolist()
 
     def map(self, text: str) -> IntentVector:
         """Return the intent vector and urgency from the given text."""
