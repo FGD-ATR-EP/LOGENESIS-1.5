@@ -33,7 +33,11 @@ LOGENESIS-1.5/
 │  │  │  ├─ __init__.py
 │  │  │  └─ cogitator_x.py
 │  │  ├─ resonance/
+│  │  │  ├─ atoms.py
 │  │  │  └─ mapper.py
+│  │  ├─ aetherbus/
+│  │  │  ├─ bus.py
+│  │  │  └─ envelope.py
 │  │  ├─ porisjem.py
 │  │  ├─ lifecycle.py
 │  │  └─ __init__.py
@@ -43,6 +47,9 @@ LOGENESIS-1.5/
 ├─ pyproject.toml
 ├─ requirements.txt
 ├─ CODEX.md
+├─ tests/
+│  └─ benchmark/
+│     └─ throughput_tester.py
 └─ .env.example
 ```
 
@@ -91,3 +98,10 @@ print(result.answer, result.best_score)
 - Replace keyword PRM with a calibrated model-driven scorer.
 - Persist and analyze reflection traces for offline RL-style policy tuning.
 - Add unit tests for acceptance threshold behavior and backtracking robustness.
+
+
+## AetherBus throughput quick run
+
+```bash
+python -m tests.benchmark.throughput_tester
+```
