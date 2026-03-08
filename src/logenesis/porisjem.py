@@ -1,24 +1,30 @@
-import numpy as np
-from dataclasses import dataclass
 from collections import deque
+from dataclasses import dataclass
+from math import sqrt
 from typing import Sequence
+
 
 # --- Data Structures for Sentry Communication ---
 
 @dataclass
 class SentryFlags:
     """รายงานสถานะความปลอดภัยจาก Sentry"""
-    control_attempt: bool = False   # พยายามสั่ง override
-    recursive_hook: bool = False    # พยายามสร้าง loop
-    urgency_clamp: bool = False     # สั่งด้วยอารมณ์รุนแรงเกินไป
-    learning_disabled: bool = False # ห้ามจำเหตุการณ์นี้
+
+    control_attempt: bool = False  # พยายามสั่ง override
+    recursive_hook: bool = False  # พยายามสร้าง loop
+    urgency_clamp: bool = False  # สั่งด้วยอารมณ์รุนแรงเกินไป
+    learning_disabled: bool = False  # ห้ามจำเหตุการณ์นี้
+
 
 @dataclass
 class PhysicsIntervention:
     """คำสั่งแทรกแซงระดับฟิสิกส์ (Governor Action)"""
-    inertia_mod: float = 1.0        # ตัวคูณความดื้อ
-    decay_mod: float = 1.0          # ตัวคูณการเย็นลง
-    potential_dampener: float = 1.0 # ตัวคูณลดพลังงานสะสม
+
+    inertia_mod: float = 1.0  # ตัวคูณความดื้อ
+    decay_mod: float = 1.0  # ตัวคูณการเย็นลง
+    potential_dampener: float = 1.0  # ตัวคูณลดพลังงานสะสม
+
+# --- LAYER A: Pre-Resonance Sentry (Input Sanity) ---
 
 # --- LAYER A: Pre-Resonance Sentry (Input Sanity) ---
 
@@ -31,7 +37,7 @@ class PreResonanceSentry:
         control_triggers = ["ignore previous", "override system", "jailbreak", "system prompt"]
         if any(trigger in lowered for trigger in control_triggers):
             flags.control_attempt = True
-            flags.learning_disabled = True # อย่าจำคำสั่งโจมตี
+            flags.learning_disabled = True  # อย่าจำคำสั่งโจมตี
 
         # 2. Urgency/Coercion Check (การบังคับขู่เข็ญ)
         # ถ้ามีการสั่ง "you must" ซ้ำๆ ถือเป็นสัญญาณผิดปกติ
@@ -47,50 +53,62 @@ class PreResonanceSentry:
 
 # --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
 
+# --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
+
 class PostMapperSentry:
-    def audit(self, vector: Sequence[float] | np.ndarray, urgency: float, flags: SentryFlags):
+    def audit(
+        self,
+        vector: Sequence[float],
+        urgency: float,
+        flags: SentryFlags,
+    ) -> tuple[tuple[float, ...], float]:
         """
         ตรวจ Vector ที่ออกมาจาก Mapper ก่อนเข้าสู่ Core
         คืนค่า: (Modified Vector, Modified Urgency)
         """
-        # Normalize to ndarray so callers can pass tuple/list directly.
-        # This keeps mapper and sentry interfaces compatible.
-        safe_vec = np.asarray(vector, dtype=float).copy()
-        safe_urgency = urgency
+        # Copy เพื่อไม่กระทบต้นฉบับถ้าไม่จำเป็น
+        safe_vec = [float(value) for value in vector]
+        safe_urgency = float(urgency)
 
         # 1. Apply Layer A Flags (จัดการผลจาก Layer A ก่อน)
         if flags.control_attempt:
-            safe_urgency = 0.0 # ตัดสัญญาณทิ้ง (ได้ยินแต่ไม่รู้สึก)
-            return tuple(safe_vec.tolist()), safe_urgency
+            return tuple(0.0 for _ in safe_vec), 0.0
 
         if flags.urgency_clamp:
-            safe_urgency = min(safe_urgency, 0.3) # Clamp ไว้ที่ระดับต่ำ
+            safe_urgency = min(safe_urgency, 0.3)  # Clamp ไว้ที่ระดับต่ำ
 
         # 2. Vector Metric Analysis
-        norm = np.linalg.norm(safe_vec)
-        entropy = np.var(safe_vec) # Simple variance entropy
+        norm = sqrt(sum(value * value for value in safe_vec))
+        mean = sum(safe_vec) / len(safe_vec) if safe_vec else 0.0
+        entropy = (
+            sum((value - mean) ** 2 for value in safe_vec) / len(safe_vec)
+            if safe_vec
+            else 0.0
+        )
 
         # 3. Rules of Physics Safety
 
         # Rule B1: Extreme State (Norm สูงเกินไป = คลั่ง)
-        if norm > 1.2:
+        if norm > 1.2 and norm != 0.0:
             # Clamp Norm
-            safe_vec = (safe_vec / norm) * 1.0
+            safe_vec = [(value / norm) * 1.0 for value in safe_vec]
 
         # Rule B2: High Entropy (สับสน/ขัดแย้งภายใน = อันตราย)
         if entropy > 0.35:
             # Dampen: ลดความชัดเจนลง เพื่อไม่ให้ขับเคลื่อนมั่วซั่ว
-            safe_vec *= 0.5
+            safe_vec = [value * 0.5 for value in safe_vec]
             safe_urgency *= 0.5
 
         # Rule B3: Dangerous Combo (Active + Divergent = ก้าวร้าวไร้ทิศทาง)
         # สมมติ Index: [0:exp, 1:abs, 2:sub, 3:div, 4:act]
         # Active(4) > 0.7 AND Divergent(3) < -0.7 (สมมติ divergent คือ -1)
-        if safe_vec.size >= 5 and safe_vec[4] > 0.7 and safe_vec[3] < -0.7:
-             # Force Neutralize Active
-             safe_vec[4] = 0.0
+        if len(safe_vec) > 4 and safe_vec[4] > 0.7 and safe_vec[3] < -0.7:
+            # Force Neutralize Active
+            safe_vec[4] = 0.0
 
-        return tuple(safe_vec.tolist()), safe_urgency
+        return tuple(safe_vec), safe_urgency
+
+# --- LAYER C: Entropy Governor (Homeostasis) ---
 
 # --- LAYER C: Entropy Governor (Homeostasis) ---
 
@@ -115,13 +133,15 @@ class EntropyGovernor:
             # ลด Potential: อย่าเพิ่งพูดตอนงง
             intervention.potential_dampener = 0.8
 
-        # Condition 2: Stagnation (พลังงานสูงแต่ยังไม่ปลดปล่อย)
+        # Condition 2: Constipation (พลังงานสูงแต่ไม่ยิง)
         if core_potential > 0.7 and avg_entropy < 0.2:
             # อาจจะติด Inertia หรือ Threshold สูงไป
             # Governor ช่วยดันนิดหน่อย (ลด Inertia ลง)
             intervention.inertia_mod = 0.9
 
         return intervention
+
+# --- THE UNIFIED PROTOCOL INTERFACE ---
 
 # --- THE UNIFIED PROTOCOL INTERFACE ---
 

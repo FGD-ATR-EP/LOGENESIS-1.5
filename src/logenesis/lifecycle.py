@@ -32,15 +32,9 @@ def run_lifecycle() -> None:
     flags = porisjem.scan_input(text_signal)
     resonance = mapper.map(text_signal)
 
-    # Convert tuple to numpy array for Porisjem
-    resonance_vec_np = np.array(resonance.values)
-
-    safe_vector_np, safe_urgency = porisjem.sanitize_signal(
-        resonance_vec_np, resonance.urgency, flags
+    safe_vector, safe_urgency = porisjem.sanitize_signal(
+        resonance.values, resonance.urgency, flags
     )
-
-    # Convert back to tuple for IntentVector
-    safe_vector = tuple(safe_vector_np)
 
     safe_resonance = IntentVector(values=safe_vector, urgency=safe_urgency)
     intent = inspira.validate("assist with system setup")
