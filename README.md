@@ -23,21 +23,25 @@ It does not render UI or make presentation decisions.
 LOGENESIS-1.5/
 ├─ src/
 │  ├─ logenesis/
+│  │  ├─ agents/
+│  │  │  ├─ pangenes_agent.py
+│  │  │  └─ validator_agent.py
 │  │  ├─ core/
 │  │  │  ├─ inspira.py
 │  │  │  ├─ firma.py
 │  │  │  └─ checker.py
 │  │  ├─ learning/
 │  │  │  └─ ai_learning_module.py
+│  │  ├─ memory/
+│  │  │  ├─ diffmem.py
+│  │  │  └─ gems_of_wisdom.py
 │  │  ├─ reasoning/
 │  │  │  ├─ __init__.py
 │  │  │  └─ cogitator_x.py
 │  │  ├─ resonance/
 │  │  │  ├─ atoms.py
 │  │  │  └─ mapper.py
-│  │  ├─ aetherbus/
-│  │  │  ├─ bus.py
-│  │  │  └─ envelope.py
+│  │  ├─ aetherbus.py
 │  │  ├─ porisjem.py
 │  │  ├─ lifecycle.py
 │  │  └─ __init__.py
@@ -85,6 +89,24 @@ reasoner.fit_evaluator(
 
 result = reasoner.internal_monologue("Design safe response strategy")
 print(result.answer, result.best_score)
+```
+
+## AETHERIUM-GENESIS quick start
+
+```python
+from pathlib import Path
+
+from logenesis.agents import PangenesAgent
+from logenesis.memory import GemsOfWisdomStorage, GitBasedDiffMemory
+
+storage = GemsOfWisdomStorage()
+agent = PangenesAgent(memory_storage=storage)
+intent = agent.create_intent("Draft responsible research brief")
+feedback = agent.execute_and_audit(intent)
+
+repo = GitBasedDiffMemory(Path("./memory_repo"))
+repo.write_snapshot("gems/latest.txt", "\n".join(storage.retrieve_active_context()), "persist gems")
+print(feedback)
 ```
 
 ## Technical docs
