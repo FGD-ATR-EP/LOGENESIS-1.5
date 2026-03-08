@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from logenesis.aetherbus import AetherBus
 from logenesis.agents import PangenesAgent
 from logenesis.memory import GemsOfWisdomStorage, GitBasedDiffMemory
@@ -13,6 +15,13 @@ def test_gems_of_wisdom_stores_and_returns_context() -> None:
     assert storage.retrieve_active_context() == (
         "Always verify source quality before publishing",
     )
+
+
+def test_gems_of_wisdom_rejects_empty_lesson() -> None:
+    storage = GemsOfWisdomStorage()
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        storage.add_gem("   ")
 
 
 def test_pangenes_agent_learns_from_validation_failure() -> None:
@@ -36,6 +45,27 @@ def test_diffmem_persists_history_with_git(tmp_path: Path) -> None:
     _ = diffmem.write_snapshot("gems/lesson.txt", "learned lesson", "add first gem")
 
     assert "add first gem" in diffmem.history(limit=1)
+
+
+def test_diffmem_returns_empty_history_before_first_commit(tmp_path: Path) -> None:
+    diffmem = GitBasedDiffMemory(repo_path=tmp_path / "memory_repo")
+
+    assert diffmem.history() == ()
+
+
+def test_diffmem_rejects_path_traversal(tmp_path: Path) -> None:
+    diffmem = GitBasedDiffMemory(repo_path=tmp_path / "memory_repo")
+
+    with pytest.raises(ValueError, match="must stay within"):
+        _ = diffmem.write_snapshot("../escape.txt", "bad", "reject traversal")
+
+
+def test_diffmem_allows_idempotent_write_without_crash(tmp_path: Path) -> None:
+    diffmem = GitBasedDiffMemory(repo_path=tmp_path / "memory_repo")
+    first = diffmem.write_snapshot("gems/lesson.txt", "same", "first")
+    second = diffmem.write_snapshot("gems/lesson.txt", "same", "same content")
+
+    assert first == second
 
 
 def test_aetherbus_publish_subscribe() -> None:
