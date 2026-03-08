@@ -24,6 +24,7 @@ class PhysicsIntervention:
     decay_mod: float = 1.0  # ตัวคูณการเย็นลง
     potential_dampener: float = 1.0  # ตัวคูณลดพลังงานสะสม
 
+# --- LAYER A: Pre-Resonance Sentry (Input Sanity) ---
 
 # --- LAYER A: Pre-Resonance Sentry (Input Sanity) ---
 
@@ -50,6 +51,7 @@ class PreResonanceSentry:
 
         return flags
 
+# --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
 
 # --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
 
@@ -106,6 +108,7 @@ class PostMapperSentry:
 
         return tuple(safe_vec), safe_urgency
 
+# --- LAYER C: Entropy Governor (Homeostasis) ---
 
 # --- LAYER C: Entropy Governor (Homeostasis) ---
 
@@ -138,6 +141,7 @@ class EntropyGovernor:
 
         return intervention
 
+# --- THE UNIFIED PROTOCOL INTERFACE ---
 
 # --- THE UNIFIED PROTOCOL INTERFACE ---
 
