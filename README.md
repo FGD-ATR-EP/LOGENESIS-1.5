@@ -17,6 +17,79 @@ It does not render UI or make presentation decisions.
 - **Cogitator-X (ReasoningEntity)**: trainable natural-language reasoner with
   supervised process reward, bounded search budget, and reflection/backtracking.
 
+## System Architecture Diagram (Database-Oriented)
+
+```mermaid
+erDiagram
+    STATE_SNAPSHOT ||--|| STATE_IDENTITY : contains
+    STATE_SNAPSHOT ||--|| STATE_TEMPORAL : contains
+    STATE_SNAPSHOT ||--|| STATE_INTENT : contains
+    STATE_SNAPSHOT ||--|| STATE_ENERGY : contains
+    STATE_SNAPSHOT ||--|| STATE_COHERENCE : contains
+    STATE_SNAPSHOT ||--|| STATE_ENTROPY : contains
+    STATE_SNAPSHOT ||--|| STATE_DYNAMICS : contains
+    STATE_SNAPSHOT ||--|| STATE_GATE : contains
+    STATE_SNAPSHOT ||--|| STATE_METADATA : contains
+    STATE_SNAPSHOT ||--o{ REFLECTION_TRACE : logs
+    STATE_SNAPSHOT ||--o{ GATE_DECISION_LOG : audits
+    STATE_SNAPSHOT ||--o{ MEMORY_SNAPSHOT : persists
+
+    STATE_SNAPSHOT {
+      uuid state_id PK
+      string source
+      float timestamp
+      string schema_version
+    }
+    STATE_IDENTITY {
+      uuid state_id PK,FK
+      string origin
+      string owner
+    }
+    STATE_TEMPORAL {
+      uuid state_id PK,FK
+      float delta_t
+      float continuity_score
+    }
+    STATE_INTENT {
+      uuid state_id PK,FK
+      json intent_vector_5d
+      float strength
+      float clarity
+      int multiplicity
+    }
+    STATE_GATE {
+      uuid state_id PK,FK
+      boolean allowed
+      string action
+      string reason
+    }
+    REFLECTION_TRACE {
+      bigint id PK
+      uuid state_id FK
+      int step_no
+      float candidate_score
+      string note
+    }
+    GATE_DECISION_LOG {
+      bigint id PK
+      uuid state_id FK
+      string policy
+      string decision
+      string explanation
+    }
+    MEMORY_SNAPSHOT {
+      bigint id PK
+      uuid state_id FK
+      string memory_type
+      string pointer
+      float salience
+    }
+```
+
+> This diagram maps the State Vector layers into a normalized storage model so
+> each cognitive snapshot can be audited, replayed, and linked to memory + gate
+> decisions.
+
 ## Structure
 
 ```text
@@ -114,12 +187,24 @@ print(feedback)
 - [Logenesis Engine & AetherBus Extreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
 - [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
 
-## Next extensions
+## Next extensions (English)
 
-- Add MCTS branch scoring (UCB/PUCT) to replace greedy candidate selection.
-- Replace keyword PRM with a calibrated model-driven scorer.
-- Persist and analyze reflection traces for offline RL-style policy tuning.
-- Add unit tests for acceptance threshold behavior and backtracking robustness.
+- Add **state lineage graphing** to query causality across snapshots.
+- Introduce **uncertainty calibration tables** for confidence drift monitoring.
+- Build **policy simulation sandbox** for gate-rule A/B validation before rollout.
+- Add **adaptive memory compaction** with salience-aware retention strategy.
+- Create **cross-run analytics dashboards** for intent/coherence trend diagnosis.
+
+## ข้อเสนอฟังก์ชัน/แนวทางต่อยอด (ภาษาไทย)
+
+- เพิ่มระบบ **State Lineage Graph** เพื่อดูเส้นทางเหตุและผลของแต่ละ snapshot
+  แบบย้อนหลังได้
+- เพิ่มตาราง **Uncertainty Calibration** สำหรับตรวจจับความคลาดเคลื่อนของ
+  confidence เมื่อรันต่อเนื่องหลายรอบ
+- พัฒนา **Policy Simulation Sandbox** เพื่อทดลองกฎ Gate หลายรูปแบบก่อนใช้จริง
+- เพิ่มกลไก **Adaptive Memory Compaction** โดยคัดเก็บข้อมูลตาม salience และอายุข้อมูล
+- สร้าง **Cross-run Analytics Dashboard** เพื่อวิเคราะห์แนวโน้ม intent/coherence
+  เชิงระบบ
 
 
 ## AetherBus throughput quick run
