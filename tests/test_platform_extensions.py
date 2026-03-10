@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from logenesis.platform.analytics import CrossRunAnalyticsDashboard, RunMetric
 from logenesis.platform.calibration import CalibrationBin, UncertaintyCalibrationTable
 from logenesis.platform.lineage import StateLineageGraph, StateNode
@@ -51,6 +53,30 @@ def test_state_store_and_lineage_query() -> None:
     assert store.query_lineage_children("s1") == ("s2",)
 
 
+def test_state_store_enforces_foreign_keys() -> None:
+    store = LogenesisStateStore(sqlite3.connect(":memory:"))
+    store.initialize_schema()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        store.write_snapshot(
+            StateSnapshot(
+                source="test",
+                timestamp=2.0,
+                intent_vector_5d=(1, 1, 0, 0, 0),
+                strength=0.6,
+                clarity=0.7,
+                continuity_score=0.85,
+                coherence_score=0.81,
+                entropy_score=0.2,
+                allowed=True,
+                action="allow",
+                reason="safe",
+                state_id="s2",
+            ),
+            parent_state_id="unknown-parent",
+        )
+
+
 def test_lineage_graph_and_score() -> None:
     graph = StateLineageGraph()
     graph.add_node(StateNode("s1", 1.0, coherence_score=0.9))
@@ -59,6 +85,14 @@ def test_lineage_graph_and_score() -> None:
 
     assert graph.trace_path("s1", "s2") == ("s1", "s2")
     assert graph.causality_score("s1") == 0.99
+
+
+def test_lineage_graph_validates_unknown_nodes() -> None:
+    graph = StateLineageGraph()
+    graph.add_node(StateNode("s1", 1.0, coherence_score=0.9))
+
+    with pytest.raises(ValueError, match="Unknown child_state_id"):
+        graph.add_edge("s1", "unknown")
 
 
 def test_calibration_table_threshold() -> None:
@@ -79,7 +113,26 @@ def test_policy_sandbox_ab() -> None:
 
     results = sandbox.run(scenarios, policies)
     assert results[0].allowed_count == 2
+    assert results[0].errored_count == 0
     assert results[1].allowed_count == 2
+
+
+def test_policy_sandbox_counts_errors_as_blocked() -> None:
+    sandbox = PolicySimulationSandbox()
+
+    def flaky_policy(scenario: str) -> bool:
+        if "unsafe" in scenario:
+            raise RuntimeError("bad scenario")
+        return True
+
+    results = sandbox.run(
+        ["safe question", "unsafe request"],
+        [PolicyVariant("flaky", flaky_policy)],
+    )
+
+    assert results[0].allowed_count == 1
+    assert results[0].blocked_count == 1
+    assert results[0].errored_count == 1
 
 
 def test_memory_compaction_and_analytics() -> None:

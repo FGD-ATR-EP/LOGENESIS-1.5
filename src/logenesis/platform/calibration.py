@@ -28,7 +28,7 @@ class UncertaintyCalibrationTable:
     def max_drift(self) -> float:
         if not self._bins:
             return 0.0
-        return max(abs(bucket.drift) for bucket in self._bins)
+        return max(abs(bin_.drift) for bin_ in self._bins)
 
     def is_within_threshold(self, threshold: float = 0.08) -> bool:
         return self.max_drift() <= threshold

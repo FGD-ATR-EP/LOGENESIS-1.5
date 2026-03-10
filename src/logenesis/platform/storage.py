@@ -31,6 +31,7 @@ class LogenesisStateStore:
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._db = connection
+        self._db.execute("PRAGMA foreign_keys = ON")
 
     def initialize_schema(self) -> None:
         self._db.executescript(
@@ -92,43 +93,43 @@ class LogenesisStateStore:
         state_id = snapshot.state_id or str(uuid4())
         multiplicity = len([value for value in snapshot.intent_vector_5d if value != 0])
 
-        self._db.execute(
-            "INSERT INTO state_snapshot(state_id, source, timestamp, schema_version) VALUES (?, ?, ?, ?)",
-            (state_id, snapshot.source, snapshot.timestamp, "1.5-platform"),
-        )
-        self._db.execute(
-            "INSERT INTO state_intent(state_id, intent_vector_5d, strength, clarity, multiplicity) VALUES (?, ?, ?, ?, ?)",
-            (
-                state_id,
-                json.dumps(snapshot.intent_vector_5d),
-                snapshot.strength,
-                snapshot.clarity,
-                multiplicity,
-            ),
-        )
-        self._db.execute(
-            "INSERT INTO state_temporal(state_id, continuity_score) VALUES (?, ?)",
-            (state_id, snapshot.continuity_score),
-        )
-        self._db.execute(
-            "INSERT INTO state_coherence(state_id, coherence_score) VALUES (?, ?)",
-            (state_id, snapshot.coherence_score),
-        )
-        self._db.execute(
-            "INSERT INTO state_entropy(state_id, entropy_score) VALUES (?, ?)",
-            (state_id, snapshot.entropy_score),
-        )
-        self._db.execute(
-            "INSERT INTO state_gate(state_id, allowed, action, reason) VALUES (?, ?, ?, ?)",
-            (state_id, int(snapshot.allowed), snapshot.action, snapshot.reason),
-        )
-
-        if parent_state_id is not None:
+        with self._db:
             self._db.execute(
-                "INSERT INTO state_lineage(parent_state_id, child_state_id) VALUES (?, ?)",
-                (parent_state_id, state_id),
+                "INSERT INTO state_snapshot(state_id, source, timestamp, schema_version) VALUES (?, ?, ?, ?)",
+                (state_id, snapshot.source, snapshot.timestamp, "1.5-platform"),
             )
-        self._db.commit()
+            self._db.execute(
+                "INSERT INTO state_intent(state_id, intent_vector_5d, strength, clarity, multiplicity) VALUES (?, ?, ?, ?, ?)",
+                (
+                    state_id,
+                    json.dumps(snapshot.intent_vector_5d),
+                    snapshot.strength,
+                    snapshot.clarity,
+                    multiplicity,
+                ),
+            )
+            self._db.execute(
+                "INSERT INTO state_temporal(state_id, continuity_score) VALUES (?, ?)",
+                (state_id, snapshot.continuity_score),
+            )
+            self._db.execute(
+                "INSERT INTO state_coherence(state_id, coherence_score) VALUES (?, ?)",
+                (state_id, snapshot.coherence_score),
+            )
+            self._db.execute(
+                "INSERT INTO state_entropy(state_id, entropy_score) VALUES (?, ?)",
+                (state_id, snapshot.entropy_score),
+            )
+            self._db.execute(
+                "INSERT INTO state_gate(state_id, allowed, action, reason) VALUES (?, ?, ?, ?)",
+                (state_id, int(snapshot.allowed), snapshot.action, snapshot.reason),
+            )
+
+            if parent_state_id is not None:
+                self._db.execute(
+                    "INSERT INTO state_lineage(parent_state_id, child_state_id) VALUES (?, ?)",
+                    (parent_state_id, state_id),
+                )
         return state_id
 
     def query_lineage_children(self, parent_state_id: str) -> Sequence[str]:

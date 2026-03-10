@@ -114,6 +114,13 @@ LOGENESIS-1.5/
 │  │  ├─ resonance/
 │  │  │  ├─ atoms.py
 │  │  │  └─ mapper.py
+│  │  ├─ platform/
+│  │  │  ├─ storage.py
+│  │  │  ├─ lineage.py
+│  │  │  ├─ calibration.py
+│  │  │  ├─ policy_sandbox.py
+│  │  │  ├─ memory_compaction.py
+│  │  │  └─ analytics.py
 │  │  ├─ aetherbus.py
 │  │  ├─ porisjem.py
 │  │  ├─ lifecycle.py
@@ -129,6 +136,10 @@ LOGENESIS-1.5/
 │     └─ throughput_tester.py
 └─ .env.example
 ```
+
+`src/logenesis/platform/` contains platform implementation modules for state
+lineage, uncertainty calibration, policy simulation, adaptive memory
+compaction, and cross-run analytics.
 
 ## Entry points
 

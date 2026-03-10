@@ -26,6 +26,11 @@ class StateLineageGraph:
         self._nodes[node.state_id] = node
 
     def add_edge(self, parent_state_id: str, child_state_id: str) -> None:
+        if parent_state_id not in self._nodes:
+            raise ValueError(f"Unknown parent_state_id: {parent_state_id}")
+        if child_state_id not in self._nodes:
+            raise ValueError(f"Unknown child_state_id: {child_state_id}")
+
         self._children[parent_state_id].add(child_state_id)
         self._parents[child_state_id].add(parent_state_id)
 
