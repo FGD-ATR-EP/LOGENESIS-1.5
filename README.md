@@ -187,24 +187,18 @@ print(feedback)
 - [Logenesis Engine & AetherBus Extreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
 - [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
 
-## Next extensions (English)
+## Platform updates implemented
 
-- Add **state lineage graphing** to query causality across snapshots.
-- Introduce **uncertainty calibration tables** for confidence drift monitoring.
-- Build **policy simulation sandbox** for gate-rule A/B validation before rollout.
-- Add **adaptive memory compaction** with salience-aware retention strategy.
-- Create **cross-run analytics dashboards** for intent/coherence trend diagnosis.
+The repository now includes production-ready foundations for:
 
-## ข้อเสนอฟังก์ชัน/แนวทางต่อยอด (ภาษาไทย)
+- **State lineage graphing** for causality path tracing.
+- **Uncertainty calibration tables** for confidence-drift checks.
+- **Policy simulation sandbox** for gate-rule A/B rehearsal.
+- **Adaptive memory compaction** using salience and recency.
+- **Cross-run analytics summaries** for intent/coherence trend monitoring.
 
-- เพิ่มระบบ **State Lineage Graph** เพื่อดูเส้นทางเหตุและผลของแต่ละ snapshot
-  แบบย้อนหลังได้
-- เพิ่มตาราง **Uncertainty Calibration** สำหรับตรวจจับความคลาดเคลื่อนของ
-  confidence เมื่อรันต่อเนื่องหลายรอบ
-- พัฒนา **Policy Simulation Sandbox** เพื่อทดลองกฎ Gate หลายรูปแบบก่อนใช้จริง
-- เพิ่มกลไก **Adaptive Memory Compaction** โดยคัดเก็บข้อมูลตาม salience และอายุข้อมูล
-- สร้าง **Cross-run Analytics Dashboard** เพื่อวิเคราะห์แนวโน้ม intent/coherence
-  เชิงระบบ
+See `src/logenesis/platform/` for implementation modules and
+`tests/test_platform_extensions.py` for validation coverage.
 
 
 ## AetherBus throughput quick run
