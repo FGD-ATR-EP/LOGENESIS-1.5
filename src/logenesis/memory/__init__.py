@@ -2,5 +2,6 @@
 
 from .diffmem import GitBasedDiffMemory
 from .gems_of_wisdom import GemsOfWisdomStorage
+from .miras import MIRASPolicy, MemoryArtifact, MemoryCommitResult
 
-__all__ = ["GemsOfWisdomStorage", "GitBasedDiffMemory"]
+__all__ = ["GemsOfWisdomStorage", "GitBasedDiffMemory", "MIRASPolicy", "MemoryArtifact", "MemoryCommitResult"]
