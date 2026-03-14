@@ -221,6 +221,7 @@ print(feedback)
 - [Unified Reasoning Architecture](docs/LOGENESIS_UNIFIED_REASONING_ARCHITECTURE.md)
 - [Logenesis Engine & AetherBus Extreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
 - [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
+- [Logenesis 1.5-C Context-Governed Conversational Model (Thai)](docs/LOGENESIS_1_5C_CONTEXT_GOVERNED_MODEL_TH.md)
 
 ## Platform updates implemented
 
