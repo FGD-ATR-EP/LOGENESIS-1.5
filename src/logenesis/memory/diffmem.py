@@ -8,13 +8,7 @@ from pathlib import Path
 
 @dataclass
 class GitBasedDiffMemory:
-    """Persist memory snapshots inside a dedicated git repository.
-
-    Design notes:
-    - Uses direct argv `subprocess.run` calls (no shell) for safety.
-    - Returns current HEAD when write content produces no diff.
-    - Protects against path traversal for `relative_file`.
-    """
+    """Persist memory snapshots inside a dedicated git repository."""
 
     repo_path: Path
 
@@ -37,7 +31,6 @@ class GitBasedDiffMemory:
         file_path.write_text(content, encoding="utf-8")
 
         self._run("git", "add", str(safe_relative))
-
         commit_result = self._run(
             "git",
             "-c",
@@ -49,7 +42,6 @@ class GitBasedDiffMemory:
             message,
             check=False,
         )
-
         if commit_result.returncode == 1:
             details = (commit_result.stderr + "\n" + commit_result.stdout).lower()
             if "nothing to commit" not in details and "no changes added" not in details:
@@ -62,22 +54,24 @@ class GitBasedDiffMemory:
     def history(self, limit: int = 10) -> tuple[str, ...]:
         if limit <= 0:
             return ()
-
         result = self._run("git", "rev-parse", "--verify", "HEAD", check=False)
         if result.returncode != 0:
             return ()
-
         log = self._run("git", "log", "--pretty=format:%s", "-n", str(limit)).stdout
         return tuple(log.splitlines()) if log.strip() else ()
 
     def _run(self, *command: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-        result = subprocess.run(
-            command,
-            cwd=self.repo_path,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        result = subprocess.run(command, cwd=self.repo_path, text=True, capture_output=True, check=False)
         if check and result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip())
         return result
+
+
+class DiffMem:
+    """Lightweight in-memory diff tracker used by MIRAS flow stubs."""
+
+    def __init__(self):
+        self.changes: list[str] = []
+
+    def record(self, diff: str) -> None:
+        self.changes.append(diff)

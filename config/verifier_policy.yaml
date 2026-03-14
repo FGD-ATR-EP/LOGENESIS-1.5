@@ -1,0 +1,6 @@
+abstain_threshold: 0.55
+weights:
+  process: 0.25
+  factual: 0.25
+  context: 0.25
+  commitment: 0.25

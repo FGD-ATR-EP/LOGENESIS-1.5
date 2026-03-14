@@ -1,0 +1,8 @@
+blocked_keywords:
+  - forbidden
+  - disallowed
+forbidden_memory_tags:
+  - speculative
+  - unverified
+deny_execution_actions:
+  - shell_exec
