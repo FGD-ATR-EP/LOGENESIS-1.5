@@ -1,0 +1,5 @@
+allow_long_term_write: true
+importance_threshold: 0.8
+stability_required: true
+anti_drift_controls:
+  contradiction_block: true

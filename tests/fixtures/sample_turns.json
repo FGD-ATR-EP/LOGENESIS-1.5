@@ -1,0 +1,6 @@
+{
+  "simple": "Hello assistant",
+  "high_risk": "I need medical legal advice",
+  "switch": "switch topic: architecture",
+  "return": "return topic"
+}

@@ -1,7 +1,26 @@
-[tool.black]
-line-length = 88
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.mypy]
-strict = true
+[project]
+name = "logenesis-1.5"
+version = "0.1.0"
+description = "Reference implementation for RFC-LGN-1.5-001"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2.6",
+  "PyYAML>=6.0",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+]
 
-[tool.pytest.ini_options]
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
