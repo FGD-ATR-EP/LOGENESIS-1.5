@@ -222,6 +222,7 @@ print(feedback)
 - [Logenesis Engine & AetherBus Extreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
 - [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
 - [Logenesis 1.5-C Context-Governed Conversational Model (Thai)](docs/LOGENESIS_1_5C_CONTEXT_GOVERNED_MODEL_TH.md)
+- [RFC-LGN-1.5-001: Conversational Reasoning Architecture Specification](docs/RFC-LGN-1.5-001.md)
 
 ## Platform updates implemented
 
