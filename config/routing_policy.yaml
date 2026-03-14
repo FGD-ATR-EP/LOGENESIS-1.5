@@ -1,0 +1,7 @@
+deliberative_threshold: 1.0
+risk_weight: 0.7
+unresolved_weight: 0.2
+multi_path:
+  enabled: true
+  max_nodes: 8
+  risk_threshold: 0.7
