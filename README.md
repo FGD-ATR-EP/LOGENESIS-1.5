@@ -1,7 +1,6 @@
 # LOGENESIS-1.5
 
-Logenesis is a reasoning-first engine focused on intent validation, ethical
-constraint checking, process-supervised cognition, and secure signal sanitization.
+Logenesis is a control-first reasoning governor focused on intent admission, constitutional gating, bounded multi-path search, process-aware verification, and contamination-aware memory policy.
 It does not render UI or make presentation decisions.
 
 - Logenesis does not render.
@@ -14,8 +13,8 @@ It does not render UI or make presentation decisions.
 - **Firma**: evaluates feasibility and constraints.
 - **Checker**: enforces constitutional boundaries.
 - **ResonanceMapper + PORISJEM**: maps text to vectors and sanitizes risky signals.
-- **Cogitator-X (ReasoningEntity)**: trainable natural-language reasoner with
-  supervised process reward, bounded search budget, and reflection/backtracking.
+- **Cogitator-X (ReasoningEntity)**: bounded search-episode manager with typed thought nodes, UCB-like selection, PRM-style verification, risk pruning, backpropagation, and stable termination policy.
+- **CommitGate + MIRAS**: single-writer long-term memory policy for stable solution commits, failure lessons, and calibrated episode summaries.
 
 ## System Architecture Diagram (Database-Oriented)
 
@@ -89,6 +88,18 @@ erDiagram
 > This diagram maps the State Vector layers into a normalized storage model so
 > each cognitive snapshot can be audited, replayed, and linked to memory + gate
 > decisions.
+
+
+## Canonical reasoning-control stack
+
+```text
+[Input] -> Intent Normalizer -> Inspira/Firma Admission Gate
+-> Logenesis Search Episode Manager -> Multi-Path Reasoning Controller
+-> Best Stable Reasoned State -> Manifest/Answer Synthesis
+-> Commit Gate -> MIRAS Memory Policy
+```
+
+Public contracts expose only stable summary, confidence, uncertainty factors, status, and risk. Internal reasoning trees are kept private for debug/testing.
 
 ## Structure
 
@@ -195,6 +206,7 @@ print(feedback)
 
 ## Technical docs
 
+- [Unified Reasoning Architecture](docs/LOGENESIS_UNIFIED_REASONING_ARCHITECTURE.md)
 - [Logenesis Engine & AetherBus Extreme report (Thai)](LOGENESIS_AETHERBUS_REPORT_TH.md)
 - [Logenesis State Vector v1 (Thai)](LOGENESIS_STATE_VECTOR_V1_TH.md)
 

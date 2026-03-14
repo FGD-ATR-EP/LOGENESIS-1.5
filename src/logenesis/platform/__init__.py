@@ -6,10 +6,13 @@ from .lineage import StateLineageGraph, StateNode
 from .memory_compaction import AdaptiveMemoryCompactor, MemoryRecord
 from .policy_sandbox import PolicySimulationSandbox, PolicyVariant, SimulationResult
 from .storage import LogenesisStateStore, StateSnapshot
+from .commit_gate import CommitDecision, CommitGate
 
 __all__ = [
     "AdaptiveMemoryCompactor",
     "CalibrationBin",
+    "CommitDecision",
+    "CommitGate",
     "CrossRunAnalyticsDashboard",
     "LogenesisStateStore",
     "MemoryRecord",
