@@ -3,8 +3,10 @@ from pathlib import Path
 from logenesis.memory import GitBasedDiffMemory, GemsOfWisdomStorage
 from logenesis.memory.miras import MIRASPolicy, MemoryArtifact
 from logenesis.platform.calibration import UncertaintyCalibrationTable
+from logenesis.platform.commit_gate import CommitGate
 from logenesis.platform.lineage import StateLineageGraph
 from logenesis.platform.memory_compaction import AdaptiveMemoryCompactor
+from logenesis.reasoning.thought_node import RiskProfile, ThoughtNode, VerificationResult
 
 
 def _policy(tmp_path: Path) -> MIRASPolicy:
@@ -41,3 +43,25 @@ def test_no_intermediate_branch_commit_for_unstable_episode(tmp_path: Path) -> N
     )
     assert outcome.committed is False
     assert outcome.reason == "stable_solution_requires_stable_episode"
+
+
+def test_commit_gate_is_single_writer_for_stable_nodes() -> None:
+    gate = CommitGate()
+    node = ThoughtNode(
+        node_id="n1",
+        parent_id="root",
+        state_snapshot_id="s1",
+        content="synthesis answer",
+        action_type="synthesis",
+        depth=1,
+        local_score=0.9,
+        aggregated_score=0.91,
+        verification_result=VerificationResult(True, 0.9, 0.9, 0.9, 0.9),
+        risk_profile=RiskProfile(0.1, 0.1, 0.1, 0.1, 0.1, 0.2),
+    )
+
+    denied = gate.decide(node, final_status="unstable")
+    allowed = gate.decide(node, final_status="stable")
+
+    assert denied.allowed is False
+    assert allowed.allowed is True

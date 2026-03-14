@@ -6,7 +6,18 @@ from typing import Literal
 
 
 TerminalStatus = Literal["open", "solved", "invalid", "pruned", "stalled"]
-ActionType = Literal["infer", "decompose", "verify", "simulate", "conclude"]
+ActionType = Literal[
+    "infer",
+    "decompose",
+    "verify",
+    "simulate",
+    "conclude",
+    "alternative_hypothesis",
+    "constraint_repair",
+    "evidence_check",
+    "simulation",
+    "synthesis",
+]
 
 
 @dataclass(frozen=True)
@@ -46,9 +57,7 @@ class VerificationResult:
 
     @property
     def total_score(self) -> float:
-        return (
-            self.process_score + self.truthfulness_score + self.coherence_score + self.constraint_score
-        ) / 4
+        return (self.process_score + self.truthfulness_score + self.coherence_score + self.constraint_score) / 4
 
 
 @dataclass(frozen=True)

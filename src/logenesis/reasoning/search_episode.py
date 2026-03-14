@@ -20,11 +20,16 @@ class SearchEpisode:
     rounds_used: int = 0
     stagnation_rounds: int = 0
     score_history: list[float] = field(default_factory=list)
+    rsi_lessons: list[str] = field(default_factory=list)
 
     def budget_available(self) -> bool:
         return self.rounds_used < self.budget
 
     def append_child(self, parent_id: str, child: ThoughtNode) -> None:
+        if parent_id not in self.tree:
+            raise KeyError(f"Unknown parent_id={parent_id}")
+        if child.node_id in self.tree:
+            raise ValueError(f"append-only violation: node_id={child.node_id} already exists")
         self.tree[child.node_id] = child
         self.tree[parent_id].child_ids.append(child.node_id)
 

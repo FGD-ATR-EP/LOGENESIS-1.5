@@ -6,12 +6,13 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PublicReasoningResult:
-    stable_summary: str
+    final_state: str
+    best_node: str
     confidence: float
-    uncertainty_factors: tuple[str, ...]
-    final_status: str
     risk: float
+    uncertainty_factors: tuple[str, ...]
     termination_reason: str
+    answer_summary: str
 
 
 @dataclass(frozen=True)

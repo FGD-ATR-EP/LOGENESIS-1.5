@@ -60,11 +60,13 @@ Additional exits: budget exhaustion and stagnation.
 ## Public vs Internal Contract
 
 Public output exposes only:
-- stable summary
+- final_state
+- best_node
 - confidence
-- uncertainty factors
-- final status
 - risk
+- uncertainty_factors
+- termination_reason
+- answer_summary
 
 Internal tree and node contents remain for debug/test surfaces only.
 
@@ -79,3 +81,11 @@ MIRAS governs retention and contamination control. Allowed commit classes:
 - episode_summary
 
 Commit artifacts are written through DiffMem, mirrored as Gems, and compacted by salience/age policy.
+
+
+## Enforcement notes
+
+- `SearchEpisode.append_child()` rejects duplicate `node_id` to preserve append-only tree semantics.
+- Branch gate checks run before verifier acceptance and prune unsafe tool paths.
+- RSI learning output (`rsi_lessons`) is produced only after episode completion.
+- Commit path remains `CommitGate` -> `MIRASPolicy` for single-writer long-term memory control.
