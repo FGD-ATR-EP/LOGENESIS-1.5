@@ -5,6 +5,7 @@ def test_public_result_hides_internal_reasoning_tree() -> None:
     reasoner = ReasoningEntity()
     public = reasoner.run_public_episode("Plan constrained migration")
 
-    assert hasattr(public, "stable_summary")
-    assert not hasattr(public, "trace")
-    assert "node" not in public.stable_summary.lower()
+    assert hasattr(public, "answer_summary")
+    assert hasattr(public, "best_node")
+    assert not hasattr(public, "tree")
+    assert "node" not in public.answer_summary.lower()

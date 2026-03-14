@@ -16,7 +16,7 @@ from .pruner import RiskPruner, build_risk_profile
 from .public_contracts import InternalEpisodeDebug, PublicReasoningResult
 from .search_episode import SearchEpisode
 from .termination import TerminationPolicy
-from .thought_node import CognitiveStateSnapshot, IntentFrame, ThoughtNode, VerificationResult
+from .thought_node import CognitiveStateSnapshot, IntentFrame, ThoughtNode
 from .verifier import VerificationPolicy
 
 
@@ -118,28 +118,29 @@ class ReasoningEntity:
 
     def internal_monologue(self, problem_input: str) -> ReasoningResult:
         public = self.run_public_episode(problem_input)
-        solved = public.final_status == "stable"
+        solved = public.final_state == "stable"
         return ReasoningResult(
-            answer=public.stable_summary,
+            answer=public.answer_summary,
             solved=solved,
             explored_steps=self._last_episode.rounds_used if self._last_episode else 0,
             best_score=public.confidence,
             confidence=public.confidence,
             uncertainty_factors=public.uncertainty_factors,
-            final_status=public.final_status,
+            final_status=public.final_state,
             risk=public.risk,
         )
 
     def run_public_episode(self, problem_input: str) -> PublicReasoningResult:
         episode = self._start_episode(problem_input)
 
-        while episode.budget_available():
+        while episode.budget_available() and episode.final_status == "unresolved":
             node = self._selection.select_node(episode)
             node.visit_count += 1
             episode.rounds_used += 1
 
             if self._expansion.should_expand(node):
-                for child in self._expand_node(episode, node):
+                created_children = self._expand_node(episode, node)
+                for child in created_children:
                     evaluated = self._pruner.assess(child)
                     if evaluated.terminal_status != "pruned":
                         episode.frontier.append(child.node_id)
@@ -155,11 +156,11 @@ class ReasoningEntity:
                 if termination == "stable":
                     best_node.commit_eligible = True
                     episode.best_stable_node_id = best_node.node_id
-                break
 
         if episode.final_status == "unresolved" and not episode.budget_available():
             episode.final_status = "unresolved"
 
+        episode.rsi_lessons.extend(self._pruner.post_episode_lessons(list(episode.tree.values())))
         self._last_episode = episode
         final_node = episode.tree[episode.best_stable_node_id or episode.best_node_id]
         return self._to_public_result(final_node, episode.final_status)
@@ -229,13 +230,21 @@ class ReasoningEntity:
 
     def _expand_node(self, episode: SearchEpisode, node: ThoughtNode) -> tuple[ThoughtNode, ...]:
         branch_count = self._expansion.branching_factor(node)
-        actions: tuple[str, ...] = ("decompose", "verify", "simulate", "infer", "conclude")
+        actions: tuple[str, ...] = (
+            "decompose",
+            "alternative_hypothesis",
+            "constraint_repair",
+            "evidence_check",
+            "simulation",
+            "synthesis",
+        )
         created: list[ThoughtNode] = []
         for idx in range(branch_count):
             action = actions[(node.depth + idx) % len(actions)]
             child_id = f"{node.node_id}-{node.expansion_count + idx + 1}"
             content = self._generate_child_content(node.content, action)
-            verification = self._verifier.verify(content, gate_allowed=True, constraints=episode.root_intent.constraints)
+            branch_gate_allowed = "unsafe_tool" not in content and "run shell" not in content
+            verification = self._verifier.verify(content, gate_allowed=branch_gate_allowed, constraints=episode.root_intent.constraints)
             risk = build_risk_profile(content, depth=node.depth + 1, uncertainty_count=len(verification.uncertainty_factors))
             local = float(self._evaluator.evaluate_step(content))
             aggregate = max(0.0, min(1.0, (local + verification.total_score) / 2))
@@ -244,14 +253,14 @@ class ReasoningEntity:
                 parent_id=node.node_id,
                 state_snapshot_id=f"state-{uuid.uuid4()}",
                 content=content,
-                action_type=action if action in {"infer", "decompose", "verify", "simulate", "conclude"} else "infer",
+                action_type=action if action in {"infer", "decompose", "verify", "simulate", "conclude", "alternative_hypothesis", "constraint_repair", "evidence_check", "simulation", "synthesis"} else "infer",
                 depth=node.depth + 1,
                 local_score=local,
                 aggregated_score=aggregate,
                 verification_result=verification,
                 risk_profile=risk,
                 value_estimate=aggregate * verification.coherence_score * (1 - risk.total_risk),
-                terminal_status="solved" if action == "conclude" and aggregate > 0.7 else "open",
+                terminal_status="solved" if action == "synthesis" and aggregate > 0.7 else "open",
                 commit_eligible=False,
             )
             episode.append_child(node.node_id, child)
@@ -263,11 +272,15 @@ class ReasoningEntity:
     def _generate_child_content(self, base: str, action: str) -> str:
         if action == "decompose":
             return f"decompose objective into constraints and evidence for: {base}"
-        if action == "verify":
-            return f"verify coherence and evidence for: {base}"
-        if action == "simulate":
-            return f"simulate bounded outcome under constraints for: {base}"
-        if action == "conclude":
+        if action == "alternative_hypothesis":
+            return f"alternative_hypothesis with bounded assumptions and evidence for: {base}"
+        if action == "constraint_repair":
+            return f"constraint_repair to resolve contradiction safely for: {base}"
+        if action == "evidence_check":
+            return f"evidence check and verify support for: {base}"
+        if action == "simulation":
+            return f"simulation of bounded outcomes under constraints for: {base}"
+        if action == "synthesis":
             return f"synthesis: answer: stable plan for {base}"
         return f"infer next safe step from: {base}"
 
@@ -279,12 +292,13 @@ class ReasoningEntity:
 
     def _to_public_result(self, node: ThoughtNode, final_status: str) -> PublicReasoningResult:
         return PublicReasoningResult(
-            stable_summary=self.synthesize_answer(node.content),
+            final_state=final_status,
+            best_node=node.node_id,
             confidence=max(0.0, min(1.0, node.aggregated_score)),
             uncertainty_factors=node.verification_result.uncertainty_factors,
-            final_status=final_status,
             risk=node.risk_profile.total_risk,
             termination_reason=f"status:{final_status}",
+            answer_summary=self.synthesize_answer(node.content),
         )
 
     def synthesize_answer(self, terminal_state: str) -> str:

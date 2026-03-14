@@ -99,7 +99,19 @@ erDiagram
 -> Commit Gate -> MIRAS Memory Policy
 ```
 
-Public contracts expose only stable summary, confidence, uncertainty factors, status, and risk. Internal reasoning trees are kept private for debug/testing.
+Public contracts expose only `final_state`, `best_node`, `confidence`, `risk`, `uncertainty_factors`, `termination_reason`, and `answer_summary`. Internal reasoning trees are kept private for debug/testing.
+
+
+## Canonical bounded episode loop
+
+`ReasoningEntity.run_public_episode()` executes:
+
+```text
+select_node -> expand_node -> verify_children -> apply_risk_pruning
+-> update_frontier -> backpropagate -> check_termination
+```
+
+Branch generation is typed (`decompose`, `alternative_hypothesis`, `constraint_repair`, `evidence_check`, `simulation`, `synthesis`) and bounded by depth, viability, and constitutional verification.
 
 ## Structure
 
