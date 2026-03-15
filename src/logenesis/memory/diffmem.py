@@ -75,3 +75,6 @@ class DiffMem:
 
     def record(self, diff: str, lineage_ref: str | None = None) -> None:
         self.changes.append({"diff": diff, "lineage_ref": lineage_ref or "none"})
+
+    def record_long_term_change(self, memory_id: str, action: str, lineage_ref: str | None = None) -> None:
+        self.record(diff=f"{action}:{memory_id}", lineage_ref=lineage_ref)
