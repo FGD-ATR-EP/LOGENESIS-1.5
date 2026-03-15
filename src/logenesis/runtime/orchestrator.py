@@ -22,11 +22,13 @@ from logenesis.reasoning.multipath import MultiPathReasoner
 from logenesis.response.response_planner import ResponsePlanner
 from logenesis.router.reasoning_router import ReasoningRouter
 from logenesis.schemas.models import (
+    ContextPolicy,
     DialogueLedger,
     DialogueState,
     EpisodicEvent,
     MemoryRecord,
     MemoryTier,
+    RetrievalPolicy,
     RoutePath,
     TopicFrame,
 )
@@ -64,6 +66,15 @@ class TurnOrchestrator:
             "max_pollution_risk": 0.45,
             "stability_threshold": 0.7,
         }
+        self.retrieval_policy = RetrievalPolicy(
+            confidence_floor=self.memory_policy.get("retrieval_confidence_floor", 0.6),
+            max_age_seconds=self.memory_policy.get("retrieval_max_age_seconds", 60 * 60 * 24 * 30),
+            packet_limit=self.memory_policy.get("retrieval_packet_limit", 8),
+        )
+        self.context_policy = ContextPolicy(
+            token_budget=self.memory_policy.get("context_token_budget", 1536),
+            turn_window=self.memory_policy.get("context_turn_window", 12),
+        )
         self.commit_gate = CommitGate(self.constitution)
         self.working_memory = WorkingMemory()
         self.episodic_memory = EpisodicMemory()
@@ -122,9 +133,7 @@ class TurnOrchestrator:
                 self.topic,
                 now_ts=time.time(),
                 session_scope=conversation_id,
-                confidence_floor=self.memory_policy.get("retrieval_confidence_floor", 0.6),
-                max_age_seconds=self.memory_policy.get("retrieval_max_age_seconds", 60 * 60 * 24 * 30),
-                packet_limit=self.memory_policy.get("retrieval_packet_limit", 8),
+                policy=self.retrieval_policy.model_copy(update={"session_scope": conversation_id, "topic_scope": self.topic.active_topic}),
             )
         drift_detected = self.drift_detector.detect(self.topic, self.ledger_service.ledger, text=text)
 
@@ -136,16 +145,15 @@ class TurnOrchestrator:
             ledger=self.ledger_service.ledger,
             current_phase="context_compiled",
             context_anchor_summary=f"topic:{self.topic.active_topic};claims:{len(self.ledger_service.ledger.unverified_claims)}",
-            transition_metadata={"drift_detected": drift_detected},
-            retrieval_metadata={"allowed": retrieval_allowed, "retrieved": len(retrieved)},
+            transition_metadata={"drift_detected": drift_detected, "phase": "context_governed"},
+            retrieval_metadata={"allowed": retrieval_allowed, "retrieved": len(retrieved), "topic": self.topic.active_topic},
         )
         context = self.context_compiler.compile(
             state,
             constraints=intent.user_constraints,
             retrieval_records=retrieved,
             drift_detected=drift_detected,
-            token_budget=self.memory_policy.get("context_token_budget", 1536),
-            turn_window=self.memory_policy.get("context_turn_window", 12),
+            policy=self.context_policy,
         )
         context.retrieval_count = len(retrieved)
         context.retrieval_policy_blocked = not retrieval_allowed
@@ -167,7 +175,7 @@ class TurnOrchestrator:
             reasoning_meta = {"explored": 0, "root_score": 0.0, "commit_eligible": True}
 
         model_output = self.provider.generate(text, context)
-        process = self.process_verifier.score({"policy_ok": True, "cot_leak_risk": "hidden_trace" in model_output, "drift_detected": drift_detected})
+        process = self.process_verifier.score({"policy_ok": True, "cot_leak_risk": "hidden_trace" in model_output, "drift_detected": drift_detected, "route": route.value if isinstance(route, RoutePath) else str(route)})
         factual = self.factual_verifier.score(model_output, self.ledger_service.ledger.confirmed_facts)
         context_score = self.context_verifier.score(model_output, context)
         commitment = self.commitment_verifier.score(model_output, self.ledger_service.ledger.commitments_made)
@@ -191,6 +199,8 @@ class TurnOrchestrator:
         self.working_memory.add(candidate.model_copy(update={"tier": MemoryTier.WORKING}))
 
         self.ledger_service.update_from_turn(text, answer)
+        if drift_detected:
+            self.ledger_service.add_unresolved(f"drift:{text[:96]}")
 
         policy_decision = self.commit_gate.evaluate_policy(candidate, verification.aggregate_score, self.memory_policy)
         commit_blocked_by_reasoning = not reasoning_meta["commit_eligible"]
@@ -252,6 +262,7 @@ class TurnOrchestrator:
                 "allowed": retrieval_allowed,
                 "count": len(retrieved),
                 "drift_detected": drift_detected,
+                "filters": context.retrieval_filters_applied,
             },
             "memory_candidate": {
                 "commit_candidate": can_commit,

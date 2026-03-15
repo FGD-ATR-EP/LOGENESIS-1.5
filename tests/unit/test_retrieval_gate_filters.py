@@ -63,6 +63,20 @@ def test_retrieval_gate_topic_time_confidence_session_filters():
             created_at=now - 60 * 60 * 24 * 60,
             last_used_at=now - 60 * 60 * 24 * 60,
         ),
+        MemoryRecord(
+            memory_id="5",
+            tier=MemoryTier.SEMANTIC,
+            payload={"topic": "finance", "summary": "low confidence", "session_scope": "c1"},
+            provenance="turn:c1",
+            verified=True,
+            stable=True,
+            confidence=0.4,
+            relevance=0.4,
+            reuse_likelihood=0.9,
+            pollution_risk=0.1,
+            created_at=now,
+            last_used_at=now,
+        ),
     ]
     out = RetrievalGate().query(recs, TopicFrame(active_topic="finance"), now_ts=now, session_scope="c1")
     assert [x.memory_id for x in out] == ["1"]

@@ -39,6 +39,8 @@ class TopicFrame(BaseModel):
     anchor_summary: str = ""
     switch_count: int = 0
     contradictory_return_blocked: bool = False
+    last_topic_change_turn: int = 0
+    return_guard_reason: str | None = None
 
 
 class DialogueLedger(BaseModel):
@@ -85,6 +87,25 @@ class ContextPacket(BaseModel):
     excluded_prior_turns: int = 0
     packet_truncated: bool = False
     retrieval_filters_applied: dict[str, Any] = Field(default_factory=dict)
+    ledger_turn_index: int = 0
+    contradiction_count: int = 0
+    includes_raw_transcript: bool = False
+
+
+class RetrievalPolicy(BaseModel):
+    confidence_floor: float = 0.6
+    max_age_seconds: float = 60 * 60 * 24 * 30
+    packet_limit: int = 8
+    session_scope: str | None = None
+    topic_scope: str | None = None
+
+
+class ContextPolicy(BaseModel):
+    token_budget: int = 1536
+    max_confirmed_facts: int = 6
+    max_unresolved_items: int = 6
+    max_retrieval_items: int = 6
+    turn_window: int = 12
 
 
 class ThoughtNode(BaseModel):
