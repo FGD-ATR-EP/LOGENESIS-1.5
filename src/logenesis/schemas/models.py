@@ -39,8 +39,10 @@ class TopicFrame(BaseModel):
 
 
 class DialogueLedger(BaseModel):
+    turn_index: int = 0
     confirmed_facts: list[str] = Field(default_factory=list)
     unverified_claims: list[str] = Field(default_factory=list)
+    observed_claims: list[str] = Field(default_factory=list)
     commitments_made: list[str] = Field(default_factory=list)
     commitments_revoked: list[str] = Field(default_factory=list)
     unresolved_items: list[str] = Field(default_factory=list)
@@ -57,6 +59,8 @@ class DialogueState(BaseModel):
     open_decisions: list[str] = Field(default_factory=list)
     context_anchor_summary: str = ""
     transition_metadata: dict[str, Any] = Field(default_factory=dict)
+    retrieval_metadata: dict[str, Any] = Field(default_factory=dict)
+    verification_metadata: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -72,6 +76,8 @@ class ContextPacket(BaseModel):
     context_anchor_summary: str = ""
     drift_detected: bool = False
     retrieval_items: list[str] = Field(default_factory=list)
+    retrieval_count: int = 0
+    retrieval_policy_blocked: bool = False
 
 
 class ThoughtNode(BaseModel):
@@ -125,3 +131,5 @@ class MemoryRecord(BaseModel):
     last_used_at: float = 0.0
     decay_state: str = "fresh"
     lineage_ref: str | None = None
+    commit_candidate: bool = True
+    blocked_reasons: list[str] = Field(default_factory=list)
