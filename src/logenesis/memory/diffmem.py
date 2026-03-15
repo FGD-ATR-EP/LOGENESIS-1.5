@@ -68,10 +68,10 @@ class GitBasedDiffMemory:
 
 
 class DiffMem:
-    """Lightweight in-memory diff tracker used by MIRAS flow stubs."""
+    """Lightweight in-memory diff tracker used by MIRAS flow."""
 
     def __init__(self):
-        self.changes: list[str] = []
+        self.changes: list[dict[str, str]] = []
 
-    def record(self, diff: str) -> None:
-        self.changes.append(diff)
+    def record(self, diff: str, lineage_ref: str | None = None) -> None:
+        self.changes.append({"diff": diff, "lineage_ref": lineage_ref or "none"})

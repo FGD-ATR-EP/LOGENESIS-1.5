@@ -15,3 +15,6 @@ class ConversationTurnResponse(BaseModel):
     route: str
     abstain: bool
     verification_score: float
+    confidence: float = 0.0
+    uncertainty_factors: list[str] = Field(default_factory=list)
+    valid_hard: bool = True
