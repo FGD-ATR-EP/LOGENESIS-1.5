@@ -22,4 +22,7 @@ def conversation_turn(req: ConversationTurnRequest) -> ConversationTurnResponse:
         route=out["route"],
         abstain=out["abstain"],
         verification_score=out["score"],
+        confidence=out.get("confidence", out["score"]),
+        uncertainty_factors=out.get("uncertainty_factors", []),
+        valid_hard=out.get("valid_hard", True),
     )

@@ -98,3 +98,7 @@ Target benchmark families:
 - Direct exposure of chain-of-thought.
 - Always-on deep search for every prompt.
 - Cluster-dependent training pipelines in this repository.
+
+## 12. Implementation Status Notes (Behavior-Complete Reference)
+
+Current implementation now wires full turn lifecycle, bounded optional multipath search modules, weighted verifier aggregation with uncertainty factors, richer schema models, and MIRAS turn-loop memory updates (working/episodic/semantic/DiffMem) with post-episode RSI gating.
