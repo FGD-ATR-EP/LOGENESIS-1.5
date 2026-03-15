@@ -19,6 +19,7 @@ from logenesis.memory.rsi import RSI
 from logenesis.memory.semantic_memory import SemanticMemory
 from logenesis.memory.working_memory import WorkingMemory
 from logenesis.reasoning.multipath import MultiPathReasoner
+from logenesis.response.response_planner import ResponsePlanner
 from logenesis.router.reasoning_router import ReasoningRouter
 from logenesis.schemas.models import DialogueLedger, DialogueState, MemoryRecord, MemoryTier, RoutePath, TopicFrame
 from logenesis.verifier.commitment_verifier import CommitmentVerifier
@@ -26,7 +27,6 @@ from logenesis.verifier.context_verifier import ContextVerifier
 from logenesis.verifier.factual_verifier import FactualVerifier
 from logenesis.verifier.process_verifier import ProcessVerifier
 from logenesis.verifier.scoring_aggregator import ScoringAggregator
-from logenesis.response.response_planner import ResponsePlanner
 
 
 class TurnOrchestrator:
@@ -97,9 +97,19 @@ class TurnOrchestrator:
         intent = self.intent_normalizer.normalize(text, active_topic=self.topic.active_topic)
         self.topic = self.topic_manager.update(self.topic, text, ledger=self.ledger_service.ledger)
 
-        # 5 retrieval and 6 context compile with drift
-        retrieved = self.retrieval_gate.query(self.semantic_memory.records, self.topic, now_ts=time.time(), session_scope=conversation_id)
+        # 5 retrieval and drift detector integrated into turn behavior
+        retrieval_allowed = self.retrieval_gate.allowed(intent.risk_flags, self.memory_policy)
+        retrieved = []
+        if retrieval_allowed:
+            retrieved = self.retrieval_gate.query(
+                self.semantic_memory.records,
+                self.topic,
+                now_ts=time.time(),
+                session_scope=conversation_id,
+            )
         drift_detected = self.drift_detector.detect(self.topic, self.ledger_service.ledger, text=text)
+
+        # 6 dialogue state and context compilation
         state = DialogueState(
             conversation_id=conversation_id,
             turn_id=str(uuid4()),
@@ -109,17 +119,21 @@ class TurnOrchestrator:
             current_phase="context_compiled",
             context_anchor_summary=f"topic:{self.topic.active_topic};claims:{len(self.ledger_service.ledger.unverified_claims)}",
             transition_metadata={"drift_detected": drift_detected},
+            retrieval_metadata={"allowed": retrieval_allowed, "retrieved": len(retrieved)},
         )
         context = self.context_compiler.compile(state, constraints=intent.user_constraints, retrieval_records=retrieved, drift_detected=drift_detected)
+        context.retrieval_count = len(retrieved)
+        context.retrieval_policy_blocked = not retrieval_allowed
 
         # 7 ledger update pre-generation
+        self.ledger_service.ledger.turn_index += 1
+        self.ledger_service.ledger.observed_claims.append(text[:160])
         self.ledger_service.add_unverified_claim(text[:160])
 
         # 8 route
         route = self.router.route(intent, context)
 
         # 9 optional bounded multipath
-        reasoning_meta = None
         if route == RoutePath.DELIBERATIVE and (intent.risk_flags or drift_detected):
             root, explored = self.reasoner.run(text, enable=True)
             reasoning_meta = {"explored": len(explored), "root_score": root.aggregated_score}
@@ -138,17 +152,21 @@ class TurnOrchestrator:
         # 12 response planner
         answer = self.response_planner.render(model_output, verification)
 
-        # 13 candidate + 14 commit gate
+        # 13 memory candidate creation + 14 commit gate
         candidate = self._memory_candidate(conversation_id, answer, verification.aggregate_score)
-        # 15 memory updates
+
+        # 15 memory updates flow
         self.working_memory.add(candidate.model_copy(update={"tier": MemoryTier.WORKING}))
         self.episodic_memory.commit(candidate.model_copy(update={"tier": MemoryTier.EPISODIC, "stable": True}))
 
-        if self.commit_gate.can_commit(candidate, verification.aggregate_score, self.memory_policy):
+        can_commit = self.commit_gate.can_commit(candidate, verification.aggregate_score, self.memory_policy)
+        if can_commit:
             self.semantic_memory.commit(candidate)
             self.diffmem.record(diff=f"commit:{candidate.memory_id}", lineage_ref=candidate.lineage_ref)
             self.ledger_service.confirm_fact(answer[:120])
         else:
+            candidate.commit_candidate = False
+            candidate.blocked_reasons.append("commit_gate_denied")
             self.ledger_service.add_unresolved(text[:120])
 
         self.ledger_service.update_from_turn(text, answer)
@@ -164,5 +182,14 @@ class TurnOrchestrator:
             "uncertainty_factors": verification.uncertainty_factors,
             "valid_hard": verification.valid_hard,
             "reasoning": reasoning_meta,
+            "retrieval": {
+                "allowed": retrieval_allowed,
+                "count": len(retrieved),
+                "drift_detected": drift_detected,
+            },
+            "memory_candidate": {
+                "commit_candidate": can_commit,
+                "blocked_reasons": [] if can_commit else ["commit_gate_denied"],
+            },
             "rsi": rsi_summary,
         }
