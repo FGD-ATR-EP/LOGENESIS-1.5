@@ -20,6 +20,7 @@ class RetrievalGate:
         session_scope: str | None = None,
         max_age_seconds: float = 60 * 60 * 24 * 30,
         packet_limit: int = 8,
+        topic_scope: str | None = None,
         policy: RetrievalPolicy | None = None,
     ) -> list[MemoryRecord]:
         if policy is not None:
@@ -27,8 +28,10 @@ class RetrievalGate:
             max_age_seconds = policy.max_age_seconds
             packet_limit = policy.packet_limit
             session_scope = policy.session_scope if policy.session_scope is not None else session_scope
+            topic_scope = policy.topic_scope if policy.topic_scope is not None else topic_scope
 
-        focus_terms = {topic.active_topic.lower(), *(t.lower() for t in topic.canonical_terms)}
+        focus_topic = (topic_scope or topic.active_topic).lower()
+        focus_terms = {focus_topic, *(t.lower() for t in topic.canonical_terms)}
         items: list[MemoryRecord] = []
         for rec in records:
             if rec.relevance < confidence_floor or rec.confidence < confidence_floor:
@@ -44,6 +47,8 @@ class RetrievalGate:
                 continue
 
             record_topic = str(rec.payload.get("topic", "")).lower()
+            if focus_topic and focus_topic != record_topic:
+                continue
             provenance = rec.provenance.lower()
             if focus_terms and not any(term and (term in record_topic or term in provenance) for term in focus_terms):
                 continue
