@@ -39,3 +39,24 @@ def test_memory_candidate_flow_exposes_commit_gate_result():
     assert out["memory_candidate"]["blocked_reasons"] == ["commit_gate_denied"]
     assert len(orch.semantic_memory.records) == 0
     assert len(orch.ledger_service.ledger.unresolved_items) >= 1
+
+
+
+def test_invalid_reasoning_branch_blocks_long_term_commit():
+    orch = TurnOrchestrator(
+        ruleset={"blocked_keywords": [], "forbidden_memory_tags": []},
+        routing_policy={"deliberative_threshold": 0.0, "risk_weight": 1.0, "unresolved_weight": 0.2},
+        memory_policy={
+            "allow_long_term_write": True,
+            "allow_high_stakes_retrieval": True,
+            "importance_threshold": 0.1,
+            "max_pollution_risk": 1.0,
+        },
+    )
+    orch.reasoner = orch.reasoner.__class__(max_nodes=4, risk_threshold=0.05, branching_limit=2)
+
+    out = orch.run_turn("c3", "medical plan with uncertainty")
+
+    assert out["memory_candidate"]["commit_candidate"] is False
+    assert out["memory_candidate"]["blocked_reasons"] == ["invalid_reasoning_branch"]
+    assert len(orch.semantic_memory.records) == 0

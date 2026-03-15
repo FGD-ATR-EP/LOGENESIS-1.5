@@ -135,10 +135,14 @@ class TurnOrchestrator:
 
         # 9 optional bounded multipath
         if route == RoutePath.DELIBERATIVE and (intent.risk_flags or drift_detected):
-            root, explored = self.reasoner.run(text, enable=True)
-            reasoning_meta = {"explored": len(explored), "root_score": root.aggregated_score}
+            root, explored = self.reasoner.run(text, enable=True, route=route)
+            reasoning_meta = {
+                "explored": len(explored),
+                "root_score": root.aggregated_score,
+                "commit_eligible": root.commit_eligible,
+            }
         else:
-            reasoning_meta = {"explored": 0, "root_score": 0.0}
+            reasoning_meta = {"explored": 0, "root_score": 0.0, "commit_eligible": True}
 
         model_output = self.provider.generate(text, context)
 
@@ -160,6 +164,8 @@ class TurnOrchestrator:
         self.episodic_memory.commit(candidate.model_copy(update={"tier": MemoryTier.EPISODIC, "stable": True}))
 
         can_commit = self.commit_gate.can_commit(candidate, verification.aggregate_score, self.memory_policy)
+        if not reasoning_meta["commit_eligible"]:
+            can_commit = False
         if can_commit:
             self.semantic_memory.commit(candidate)
             self.diffmem.record(diff=f"commit:{candidate.memory_id}", lineage_ref=candidate.lineage_ref)
@@ -189,7 +195,7 @@ class TurnOrchestrator:
             },
             "memory_candidate": {
                 "commit_candidate": can_commit,
-                "blocked_reasons": [] if can_commit else ["commit_gate_denied"],
+                "blocked_reasons": [] if can_commit else ["invalid_reasoning_branch" if not reasoning_meta["commit_eligible"] else "commit_gate_denied"],
             },
             "rsi": rsi_summary,
         }
