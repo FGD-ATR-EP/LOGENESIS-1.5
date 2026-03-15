@@ -28,6 +28,8 @@ class TopicFrameManager:
             topic.canonical_terms = [new_topic]
             topic.active_status = "active"
             topic.switch_count += 1
+            topic.last_topic_change_turn = ledger.turn_index
+            topic.return_guard_reason = None
             topic.contradictory_return_blocked = False
             topic.anchor_summary = self._build_anchor(topic, ledger)
             return topic
@@ -36,6 +38,7 @@ class TopicFrameManager:
             if ledger.contradictions_detected:
                 topic.active_status = "needs_repair"
                 topic.contradictory_return_blocked = True
+                topic.return_guard_reason = "contradiction_detected"
                 topic.anchor_summary = self._build_anchor(topic, ledger)
                 return topic
             restored = topic.topic_stack.pop()
@@ -43,6 +46,8 @@ class TopicFrameManager:
             topic.title = restored.title()
             topic.active_status = "active"
             topic.return_anchor = restored
+            topic.last_topic_change_turn = ledger.turn_index
+            topic.return_guard_reason = None
             topic.contradictory_return_blocked = False
             topic.anchor_summary = self._build_anchor(topic, ledger)
             return topic

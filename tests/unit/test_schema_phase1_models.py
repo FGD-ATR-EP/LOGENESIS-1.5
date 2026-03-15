@@ -1,5 +1,6 @@
 from logenesis.schemas.models import (
     ContextPacket,
+    ContextPolicy,
     DialogueLedger,
     DialogueState,
     EpisodicEvent,
@@ -8,6 +9,7 @@ from logenesis.schemas.models import (
     MemoryPolicyDecision,
     MemoryRecord,
     MemoryTier,
+    RetrievalPolicy,
     TopicFrame,
 )
 
@@ -22,6 +24,7 @@ def test_context_packet_and_memory_record_new_fields_have_safe_defaults():
     packet = ContextPacket(conversation_id="c", active_topic="t", intent_summary="i")
     assert packet.retrieval_count == 0
     assert packet.retrieval_policy_blocked is False
+    assert packet.includes_raw_transcript is False
 
     record = MemoryRecord(memory_id="m1", tier=MemoryTier.WORKING, payload={}, provenance="turn:c")
     assert record.commit_candidate is True
@@ -53,3 +56,11 @@ def test_phase1_memory_policy_models_defaults():
 
     decision = MemoryPolicyDecision()
     assert decision.allowed is False
+
+
+def test_phase1_context_and_retrieval_policy_models_defaults():
+    retrieval = RetrievalPolicy()
+    assert retrieval.packet_limit == 8
+
+    context = ContextPolicy()
+    assert context.turn_window == 12

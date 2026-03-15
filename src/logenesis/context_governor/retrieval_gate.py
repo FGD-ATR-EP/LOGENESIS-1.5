@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from logenesis.schemas.models import MemoryRecord, TopicFrame
+from logenesis.schemas.models import MemoryRecord, RetrievalPolicy, TopicFrame
 
 
 class RetrievalGate:
@@ -20,7 +20,14 @@ class RetrievalGate:
         session_scope: str | None = None,
         max_age_seconds: float = 60 * 60 * 24 * 30,
         packet_limit: int = 8,
+        policy: RetrievalPolicy | None = None,
     ) -> list[MemoryRecord]:
+        if policy is not None:
+            confidence_floor = policy.confidence_floor
+            max_age_seconds = policy.max_age_seconds
+            packet_limit = policy.packet_limit
+            session_scope = policy.session_scope if policy.session_scope is not None else session_scope
+
         focus_terms = {topic.active_topic.lower(), *(t.lower() for t in topic.canonical_terms)}
         items: list[MemoryRecord] = []
         for rec in records:

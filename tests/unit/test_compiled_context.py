@@ -12,6 +12,7 @@ def test_compiled_context_generation_and_bounded_packet():
             turn_index=20,
             confirmed_facts=[f"f{i}" for i in range(10)],
             unresolved_items=[f"u{i}" for i in range(10)],
+            contradictions_detected=["c1"],
         ),
     )
     packet = ContextCompiler().compile(state, turn_window=12)
@@ -21,3 +22,6 @@ def test_compiled_context_generation_and_bounded_packet():
     assert packet.turn_window == 12
     assert packet.excluded_prior_turns == 8
     assert packet.packet_truncated is True
+    assert packet.ledger_turn_index == 20
+    assert packet.contradiction_count == 1
+    assert packet.includes_raw_transcript is False
