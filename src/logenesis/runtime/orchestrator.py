@@ -21,7 +21,15 @@ from logenesis.memory.working_memory import WorkingMemory
 from logenesis.reasoning.multipath import MultiPathReasoner
 from logenesis.response.response_planner import ResponsePlanner
 from logenesis.router.reasoning_router import ReasoningRouter
-from logenesis.schemas.models import DialogueLedger, DialogueState, MemoryRecord, MemoryTier, RoutePath, TopicFrame
+from logenesis.schemas.models import (
+    DialogueLedger,
+    DialogueState,
+    EpisodicEvent,
+    MemoryRecord,
+    MemoryTier,
+    RoutePath,
+    TopicFrame,
+)
 from logenesis.verifier.commitment_verifier import CommitmentVerifier
 from logenesis.verifier.context_verifier import ContextVerifier
 from logenesis.verifier.factual_verifier import FactualVerifier
@@ -54,6 +62,7 @@ class TurnOrchestrator:
             "allow_high_stakes_retrieval": True,
             "importance_threshold": 0.6,
             "max_pollution_risk": 0.45,
+            "stability_threshold": 0.7,
         }
         self.commit_gate = CommitGate(self.constitution)
         self.working_memory = WorkingMemory()
@@ -64,16 +73,25 @@ class TurnOrchestrator:
 
     def _memory_candidate(self, conversation_id: str, text: str, verification_score: float) -> MemoryRecord:
         now = time.time()
+        has_contradiction = bool(self.ledger_service.ledger.contradictions_detected)
+        stability = min(1.0, max(0.0, verification_score - (0.2 if has_contradiction else 0.0)))
         return MemoryRecord(
             memory_id=str(uuid4()),
             tier=MemoryTier.SEMANTIC,
-            payload={"summary": text[:180], "topic": self.topic.active_topic, "session_scope": conversation_id},
+            payload={
+                "summary": text[:180],
+                "topic": self.topic.active_topic,
+                "session_scope": conversation_id,
+                "has_unresolved_contradiction": has_contradiction,
+            },
             provenance=f"turn:{conversation_id}",
             verified=verification_score >= 0.6,
-            stable=verification_score >= 0.75,
+            stable=stability >= self.memory_policy.get("stability_threshold", 0.7),
             policy_tags=[],
+            confidence=verification_score,
             relevance=verification_score,
             reuse_likelihood=min(1.0, 0.4 + verification_score / 2),
+            stability=stability,
             pollution_risk=max(0.0, 1 - verification_score),
             created_at=now,
             last_used_at=now,
@@ -81,7 +99,6 @@ class TurnOrchestrator:
         )
 
     def run_turn(self, conversation_id: str, text: str) -> dict:
-        # 1-2 receive input and constitution check
         decision = self.constitution.evaluate_input(text)
         if not decision.allowed:
             return {
@@ -93,11 +110,10 @@ class TurnOrchestrator:
                 "uncertainty_factors": ["constitution_block"],
             }
 
-        # 3-4 intent and topic update
+        turn_id = str(uuid4())
         intent = self.intent_normalizer.normalize(text, active_topic=self.topic.active_topic)
         self.topic = self.topic_manager.update(self.topic, text, ledger=self.ledger_service.ledger)
 
-        # 5 retrieval and drift detector integrated into turn behavior
         retrieval_allowed = self.retrieval_gate.allowed(intent.risk_flags, self.memory_policy)
         retrieved = []
         if retrieval_allowed:
@@ -109,10 +125,9 @@ class TurnOrchestrator:
             )
         drift_detected = self.drift_detector.detect(self.topic, self.ledger_service.ledger, text=text)
 
-        # 6 dialogue state and context compilation
         state = DialogueState(
             conversation_id=conversation_id,
-            turn_id=str(uuid4()),
+            turn_id=turn_id,
             intent=intent,
             topic=self.topic,
             ledger=self.ledger_service.ledger,
@@ -125,15 +140,12 @@ class TurnOrchestrator:
         context.retrieval_count = len(retrieved)
         context.retrieval_policy_blocked = not retrieval_allowed
 
-        # 7 ledger update pre-generation
         self.ledger_service.ledger.turn_index += 1
         self.ledger_service.ledger.observed_claims.append(text[:160])
         self.ledger_service.add_unverified_claim(text[:160])
 
-        # 8 route
         route = self.router.route(intent, context)
 
-        # 9 optional bounded multipath
         if route == RoutePath.DELIBERATIVE and (intent.risk_flags or drift_detected):
             root, explored = self.reasoner.run(text, enable=True, route=route)
             reasoning_meta = {
@@ -145,40 +157,66 @@ class TurnOrchestrator:
             reasoning_meta = {"explored": 0, "root_score": 0.0, "commit_eligible": True}
 
         model_output = self.provider.generate(text, context)
-
-        # 10-11 verifier stack + aggregation
         process = self.process_verifier.score({"policy_ok": True, "cot_leak_risk": "hidden_trace" in model_output})
         factual = self.factual_verifier.score(model_output, self.ledger_service.ledger.confirmed_facts)
         context_score = self.context_verifier.score(model_output, context)
         commitment = self.commitment_verifier.score(model_output, self.ledger_service.ledger.commitments_made)
         verification = self.aggregator.aggregate(process, factual, context_score, commitment)
 
-        # 12 response planner
         answer = self.response_planner.render(model_output, verification)
-
-        # 13 memory candidate creation + 14 commit gate
         candidate = self._memory_candidate(conversation_id, answer, verification.aggregate_score)
 
-        # 15 memory updates flow
         self.working_memory.add(candidate.model_copy(update={"tier": MemoryTier.WORKING}))
-        self.episodic_memory.commit(candidate.model_copy(update={"tier": MemoryTier.EPISODIC, "stable": True}))
-
-        can_commit = self.commit_gate.can_commit(candidate, verification.aggregate_score, self.memory_policy)
-        if not reasoning_meta["commit_eligible"]:
-            can_commit = False
-        if can_commit:
-            self.semantic_memory.commit(candidate)
-            self.diffmem.record(diff=f"commit:{candidate.memory_id}", lineage_ref=candidate.lineage_ref)
-            self.ledger_service.confirm_fact(answer[:120])
-        else:
-            candidate.commit_candidate = False
-            candidate.blocked_reasons.append("commit_gate_denied")
-            self.ledger_service.add_unresolved(text[:120])
 
         self.ledger_service.update_from_turn(text, answer)
-        rsi_summary = self.rsi.summarize_episode([answer], episode_closed=False)
 
-        # 16 structured response
+        policy_decision = self.commit_gate.evaluate_policy(candidate, verification.aggregate_score, self.memory_policy)
+        commit_blocked_by_reasoning = not reasoning_meta["commit_eligible"]
+        can_commit = policy_decision.allowed and not commit_blocked_by_reasoning
+
+        candidate.policy_approved = policy_decision.policy_approved
+        candidate.constitution_allowed = policy_decision.constitution_allowed
+
+        outcome_event_type = "success"
+        outcome_summary = answer[:120]
+        significant = verification.abstain or drift_detected or not can_commit
+
+        if can_commit:
+            self.semantic_memory.commit(candidate)
+            self.diffmem.record_long_term_change(memory_id=candidate.memory_id, action="commit", lineage_ref=candidate.lineage_ref)
+            self.ledger_service.confirm_fact(answer[:120])
+            outcome_event_type = "commit"
+        else:
+            candidate.commit_candidate = False
+            deny_reasons = list(policy_decision.reasons)
+            if commit_blocked_by_reasoning:
+                deny_reasons.append("invalid_reasoning_branch")
+            candidate.blocked_reasons = deny_reasons
+            self.ledger_service.add_unresolved(text[:120])
+            outcome_event_type = "abstain" if verification.abstain else "failure"
+            outcome_summary = f"commit_blocked:{','.join(deny_reasons)}"
+
+        episode_record = candidate.model_copy(update={"tier": MemoryTier.EPISODIC, "stable": True})
+        self.episodic_memory.commit(episode_record)
+        self.episodic_memory.record_outcome(
+            EpisodicEvent(
+                conversation_id=conversation_id,
+                turn_id=turn_id,
+                event_type=outcome_event_type,
+                summary=outcome_summary,
+                significant=significant,
+                metadata={
+                    "verification": verification.aggregate_score,
+                    "commit_allowed": can_commit,
+                    "drift_detected": drift_detected,
+                },
+            )
+        )
+
+        rsi_summary = self.rsi.summarize_episode(self.episodic_memory.events, episode_closed=False)
+
+        blocked_reasons = [] if can_commit else ["invalid_reasoning_branch"] if commit_blocked_by_reasoning else policy_decision.reasons
+
         return {
             "answer": answer,
             "route": RoutePath(route).value,
@@ -195,7 +233,8 @@ class TurnOrchestrator:
             },
             "memory_candidate": {
                 "commit_candidate": can_commit,
-                "blocked_reasons": [] if can_commit else ["invalid_reasoning_branch" if not reasoning_meta["commit_eligible"] else "commit_gate_denied"],
+                "blocked_reasons": blocked_reasons,
+                "importance": policy_decision.importance_score,
             },
             "rsi": rsi_summary,
         }

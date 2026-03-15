@@ -124,12 +124,44 @@ class MemoryRecord(BaseModel):
     verified: bool = False
     stable: bool = False
     policy_tags: list[str] = Field(default_factory=list)
+    confidence: float = 0.5
     relevance: float = 0.5
     reuse_likelihood: float = 0.5
+    stability: float = 0.5
     pollution_risk: float = 0.0
+    policy_approved: bool = False
+    constitution_allowed: bool = False
     created_at: float = 0.0
     last_used_at: float = 0.0
     decay_state: str = "fresh"
     lineage_ref: str | None = None
     commit_candidate: bool = True
     blocked_reasons: list[str] = Field(default_factory=list)
+
+
+class EpisodicEvent(BaseModel):
+    conversation_id: str
+    turn_id: str
+    event_type: str
+    summary: str
+    significant: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MemoryImportanceWeights(BaseModel):
+    confidence_weight: float = 0.25
+    relevance_weight: float = 0.25
+    reuse_weight: float = 0.2
+    stability_weight: float = 0.2
+    pollution_weight: float = 0.1
+
+
+class MemoryPolicyDecision(BaseModel):
+    importance_score: float = 0.0
+    verified: bool = False
+    stable: bool = False
+    policy_approved: bool = False
+    constitution_allowed: bool = False
+    pollution_risk_bounded: bool = False
+    allowed: bool = False
+    reasons: list[str] = Field(default_factory=list)
