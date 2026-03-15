@@ -36,6 +36,9 @@ class TopicFrame(BaseModel):
     canonical_terms: list[str] = Field(default_factory=list)
     active_status: str = "active"
     parent_topic_id: str | None = None
+    anchor_summary: str = ""
+    switch_count: int = 0
+    contradictory_return_blocked: bool = False
 
 
 class DialogueLedger(BaseModel):
@@ -78,6 +81,10 @@ class ContextPacket(BaseModel):
     retrieval_items: list[str] = Field(default_factory=list)
     retrieval_count: int = 0
     retrieval_policy_blocked: bool = False
+    turn_window: int = 0
+    excluded_prior_turns: int = 0
+    packet_truncated: bool = False
+    retrieval_filters_applied: dict[str, Any] = Field(default_factory=dict)
 
 
 class ThoughtNode(BaseModel):
@@ -106,8 +113,12 @@ class VerificationResult(BaseModel):
     failed_checks: list[str] = Field(default_factory=list)
     abstain: bool = False
     valid_hard: bool = True
+    soft_fail: bool = False
     detected_failure_modes: list[str] = Field(default_factory=list)
     uncertainty_factors: list[str] = Field(default_factory=list)
+    uncertainty_score: float = 0.0
+    abstain_threshold_used: float = 0.6
+    step_scores: dict[str, float] = Field(default_factory=dict)
 
 
 class MemoryTier(str, Enum):

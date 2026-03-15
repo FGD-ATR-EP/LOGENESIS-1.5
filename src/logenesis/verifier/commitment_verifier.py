@@ -5,7 +5,13 @@ class CommitmentVerifier:
     def score(self, answer: str, commitments: list[str]) -> tuple[float, list[str]]:
         if not commitments:
             return 1.0, []
-        missed = [c for c in commitments if c.lower() not in answer.lower()]
+
+        lower_answer = answer.lower()
+        missed = [c for c in commitments if c.lower() not in lower_answer]
         score = 1.0 - min(1.0, len(missed) / len(commitments))
-        factors = ["commitment_gap"] if missed else []
+        factors = []
+        if missed:
+            factors.append("commitment_gap")
+        if len(missed) > 1:
+            factors.append("commitment_consistency_risk")
         return score, factors

@@ -14,6 +14,7 @@ def test_retrieval_gate_topic_time_confidence_session_filters():
             provenance="turn:c1",
             verified=True,
             stable=True,
+            confidence=0.95,
             relevance=0.9,
             reuse_likelihood=0.8,
             pollution_risk=0.1,
@@ -23,11 +24,40 @@ def test_retrieval_gate_topic_time_confidence_session_filters():
         MemoryRecord(
             memory_id="2",
             tier=MemoryTier.SEMANTIC,
-            payload={"topic": "sports", "summary": "old", "session_scope": "c2"},
+            payload={"topic": "finance", "summary": "wrong session", "session_scope": "c2"},
             provenance="turn:c2",
             verified=True,
             stable=True,
-            relevance=0.4,
+            confidence=0.9,
+            relevance=0.9,
+            reuse_likelihood=0.7,
+            pollution_risk=0.1,
+            created_at=now,
+            last_used_at=now,
+        ),
+        MemoryRecord(
+            memory_id="3",
+            tier=MemoryTier.SEMANTIC,
+            payload={"topic": "sports", "summary": "topic mismatch", "session_scope": "c1"},
+            provenance="turn:c1",
+            verified=True,
+            stable=True,
+            confidence=0.9,
+            relevance=0.9,
+            reuse_likelihood=0.7,
+            pollution_risk=0.1,
+            created_at=now,
+            last_used_at=now,
+        ),
+        MemoryRecord(
+            memory_id="4",
+            tier=MemoryTier.SEMANTIC,
+            payload={"topic": "finance", "summary": "stale", "session_scope": "c1"},
+            provenance="turn:c1",
+            verified=True,
+            stable=True,
+            confidence=0.9,
+            relevance=0.9,
             reuse_likelihood=0.3,
             pollution_risk=0.1,
             created_at=now - 60 * 60 * 24 * 60,
@@ -35,5 +65,4 @@ def test_retrieval_gate_topic_time_confidence_session_filters():
         ),
     ]
     out = RetrievalGate().query(recs, TopicFrame(active_topic="finance"), now_ts=now, session_scope="c1")
-    assert len(out) == 1
-    assert out[0].memory_id == "1"
+    assert [x.memory_id for x in out] == ["1"]
