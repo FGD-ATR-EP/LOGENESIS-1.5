@@ -10,19 +10,45 @@ class ContextCompiler:
         constraints: list[str] | None = None,
         retrieval_records: list[MemoryRecord] | None = None,
         drift_detected: bool = False,
+        token_budget: int = 1536,
+        max_confirmed_facts: int = 6,
+        max_unresolved_items: int = 6,
+        max_retrieval_items: int = 6,
+        turn_window: int = 12,
     ) -> ContextPacket:
         retrieval_records = retrieval_records or []
-        anchor = state.context_anchor_summary or f"topic={state.topic.active_topic}; unresolved={len(state.ledger.unresolved_items)}"
-        return ContextPacket(
+        constraints = constraints or []
+        anchor = state.topic.anchor_summary or state.context_anchor_summary or (
+            f"topic={state.topic.active_topic}; unresolved={len(state.ledger.unresolved_items)}"
+        )
+
+        confirmed_facts = state.ledger.confirmed_facts[-max_confirmed_facts:]
+        unresolved_items = state.ledger.unresolved_items[-max_unresolved_items:]
+        retrieval_items = [str(r.payload.get("summary", r.payload))[:140] for r in retrieval_records][:max_retrieval_items]
+
+        included_turns = min(state.ledger.turn_index, turn_window)
+        excluded_turns = max(0, state.ledger.turn_index - included_turns)
+
+        packet = ContextPacket(
             conversation_id=state.conversation_id,
             active_topic=state.topic.active_topic,
-            intent_summary=state.intent.normalized_intent[:180],
-            confirmed_facts=state.ledger.confirmed_facts[-6:],
-            unresolved_items=state.ledger.unresolved_items[-6:],
-            constraints=(constraints or [])[:10],
-            max_tokens_budget=1536,
-            topic_focus_terms=(state.topic.canonical_terms or [state.topic.active_topic])[:10],
-            context_anchor_summary=anchor[:280],
+            intent_summary=state.intent.normalized_intent[:220],
+            confirmed_facts=confirmed_facts,
+            unresolved_items=unresolved_items,
+            constraints=constraints[:10],
+            max_tokens_budget=token_budget,
+            topic_focus_terms=(state.topic.canonical_terms or [state.topic.active_topic])[:12],
+            context_anchor_summary=anchor[:320],
             drift_detected=drift_detected,
-            retrieval_items=[str(r.payload.get("summary", r.payload))[:120] for r in retrieval_records][:6],
+            retrieval_items=retrieval_items,
+            turn_window=included_turns,
+            excluded_prior_turns=excluded_turns,
+            packet_truncated=excluded_turns > 0,
+            retrieval_filters_applied={
+                "topic": state.topic.active_topic,
+                "session_scope": state.conversation_id,
+                "confidence_floor": 0.6,
+                "turn_window": turn_window,
+            },
         )
+        return packet

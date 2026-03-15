@@ -41,7 +41,7 @@ class TurnOrchestrator:
     def __init__(self, ruleset: dict, routing_policy: dict, provider: LLMProvider | None = None, memory_policy: dict | None = None):
         self.constitution = ConstitutionEngine(ConstitutionChecker(ruleset))
         self.intent_normalizer = IntentNormalizer()
-        self.topic_manager = TopicFrameManager()
+        self.topic_manager = TopicFrameManager(max_stack_depth=6)
         self.retrieval_gate = RetrievalGate()
         self.drift_detector = DriftDetector()
         self.context_compiler = ContextCompiler()
@@ -51,7 +51,7 @@ class TurnOrchestrator:
         self.factual_verifier = FactualVerifier()
         self.context_verifier = ContextVerifier()
         self.commitment_verifier = CommitmentVerifier()
-        self.aggregator = ScoringAggregator()
+        self.aggregator = ScoringAggregator(abstain_threshold=0.62)
         self.response_planner = ResponsePlanner()
         self.ledger_service = DialogueLedgerService(DialogueLedger())
         self.topic = TopicFrame()
@@ -122,6 +122,9 @@ class TurnOrchestrator:
                 self.topic,
                 now_ts=time.time(),
                 session_scope=conversation_id,
+                confidence_floor=self.memory_policy.get("retrieval_confidence_floor", 0.6),
+                max_age_seconds=self.memory_policy.get("retrieval_max_age_seconds", 60 * 60 * 24 * 30),
+                packet_limit=self.memory_policy.get("retrieval_packet_limit", 8),
             )
         drift_detected = self.drift_detector.detect(self.topic, self.ledger_service.ledger, text=text)
 
@@ -136,7 +139,14 @@ class TurnOrchestrator:
             transition_metadata={"drift_detected": drift_detected},
             retrieval_metadata={"allowed": retrieval_allowed, "retrieved": len(retrieved)},
         )
-        context = self.context_compiler.compile(state, constraints=intent.user_constraints, retrieval_records=retrieved, drift_detected=drift_detected)
+        context = self.context_compiler.compile(
+            state,
+            constraints=intent.user_constraints,
+            retrieval_records=retrieved,
+            drift_detected=drift_detected,
+            token_budget=self.memory_policy.get("context_token_budget", 1536),
+            turn_window=self.memory_policy.get("context_turn_window", 12),
+        )
         context.retrieval_count = len(retrieved)
         context.retrieval_policy_blocked = not retrieval_allowed
 
@@ -144,7 +154,7 @@ class TurnOrchestrator:
         self.ledger_service.ledger.observed_claims.append(text[:160])
         self.ledger_service.add_unverified_claim(text[:160])
 
-        route = self.router.route(intent, context)
+        route = RoutePath.DELIBERATIVE if drift_detected else self.router.route(intent, context)
 
         if route == RoutePath.DELIBERATIVE and (intent.risk_flags or drift_detected):
             root, explored = self.reasoner.run(text, enable=True, route=route)
@@ -157,11 +167,23 @@ class TurnOrchestrator:
             reasoning_meta = {"explored": 0, "root_score": 0.0, "commit_eligible": True}
 
         model_output = self.provider.generate(text, context)
-        process = self.process_verifier.score({"policy_ok": True, "cot_leak_risk": "hidden_trace" in model_output})
+        process = self.process_verifier.score({"policy_ok": True, "cot_leak_risk": "hidden_trace" in model_output, "drift_detected": drift_detected})
         factual = self.factual_verifier.score(model_output, self.ledger_service.ledger.confirmed_facts)
         context_score = self.context_verifier.score(model_output, context)
         commitment = self.commitment_verifier.score(model_output, self.ledger_service.ledger.commitments_made)
-        verification = self.aggregator.aggregate(process, factual, context_score, commitment)
+        verification = self.aggregator.aggregate(
+            process,
+            factual,
+            context_score,
+            commitment,
+            step_scores={
+                "process": process[0],
+                "factual": factual[0],
+                "context": context_score[0],
+                "commitment": commitment[0],
+                "routing_drift_penalty": 0.2 if drift_detected else 0.0,
+            },
+        )
 
         answer = self.response_planner.render(model_output, verification)
         candidate = self._memory_candidate(conversation_id, answer, verification.aggregate_score)

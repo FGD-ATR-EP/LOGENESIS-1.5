@@ -18,20 +18,29 @@ class RetrievalGate:
         now_ts: float,
         confidence_floor: float = 0.6,
         session_scope: str | None = None,
+        max_age_seconds: float = 60 * 60 * 24 * 30,
+        packet_limit: int = 8,
     ) -> list[MemoryRecord]:
+        focus_terms = {topic.active_topic.lower(), *(t.lower() for t in topic.canonical_terms)}
         items: list[MemoryRecord] = []
         for rec in records:
-            if rec.relevance < confidence_floor:
+            if rec.relevance < confidence_floor or rec.confidence < confidence_floor:
                 continue
             if rec.pollution_risk > 0.5:
                 continue
-            record_topic = str(rec.payload.get("topic", "")).lower()
-            if topic.active_topic.lower() not in record_topic and topic.active_topic.lower() not in rec.provenance.lower():
-                continue
+
             if session_scope and rec.payload.get("session_scope") not in {None, session_scope}:
                 continue
+
             age = max(0.0, now_ts - (rec.last_used_at or rec.created_at))
-            if age > 60 * 60 * 24 * 30:
+            if age > max_age_seconds:
                 continue
+
+            record_topic = str(rec.payload.get("topic", "")).lower()
+            provenance = rec.provenance.lower()
+            if focus_terms and not any(term and (term in record_topic or term in provenance) for term in focus_terms):
+                continue
+
             items.append(rec)
-        return sorted(items, key=lambda r: (r.relevance, r.reuse_likelihood), reverse=True)[:8]
+
+        return sorted(items, key=lambda r: (r.relevance, r.reuse_likelihood, r.confidence), reverse=True)[:packet_limit]
