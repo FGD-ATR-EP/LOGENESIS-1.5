@@ -250,7 +250,7 @@ erDiagram
 | `VisualContract.v1` | `intent_ref, layout_tokens, contrast_rules, motion_policy` | `render_plan` | Deterministic compile for same inputs | unsupported primitive | graceful fallback primitive |
 | `SceneContract.v1` | `render_plan, anchors, depth_layers, predicted_time` | `scene_graph` | Ordered by `seq_no`, monotonic timestamp | stale anchors / drift | anchor refresh + reprojection |
 | `BioVisionFeed.v1` | `frame_ref, ambient_lux, weather, motion_vectors` | `env_profile, adaptation_hints` | Max staleness threshold (e.g., 100 ms AR) | sensor loss / frame drop | interpolate + degrade mode |
-| `GovernorDecision.v1` | `scene_graph, env_profile, geo, clock` | `allow|degrade|deny + constraints` | Policy deterministic per version | policy conflict | deny-by-default + audit |
+| `GovernorDecision.v1` | `scene_graph, env_profile, geo, clock` | `allow\|degrade\|deny + constraints` | Policy deterministic per version | policy conflict | deny-by-default + audit |
 | `PRGXDecision.v1` | `content_meta, actor_role, org_policy, jurisdiction` | `enforcement_action, reason_code` | Non-bypassable gate before stream publish | policy engine timeout | fail-closed for risky class |
 | `TachyonFrame.v1` | `stream_id, seq_no, ts_mono, predicted_display_time, payload_ref` | `ack, qos_metrics` | In-order delivery per channel; dedupe on `seq_no` | jitter spike / packet loss | jitter buffer + selective retry |
 | `EdgeRender.v1` | `device_caps, scene_graph, constraints` | `render_status, applied_mode` | Local deadline scheduling | missed frame deadline | reduce complexity tier |
