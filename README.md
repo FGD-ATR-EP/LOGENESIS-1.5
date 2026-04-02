@@ -126,7 +126,9 @@ Logenesis 1.5 is a production-oriented reference implementation for RFC-LGN-1.5-
 
 ---
 
-## System Architecture Diagram (Database-Oriented)
+## System Architecture Diagram (Current SQLite Schema)
+
+> แผนภาพด้านล่างสะท้อน **สคีมาที่ใช้งานจริงในปัจจุบัน** ตาม `LogenesisStateStore.initialize_schema()` ใน `src/logenesis/platform/storage.py` (ไม่ใช่สคีมาอนาคต/ข้อเสนอ)
 
 ```mermaid
 erDiagram
@@ -135,8 +137,6 @@ erDiagram
         TEXT source
         REAL timestamp
         TEXT schema_version
-        TEXT mode "inspira|firma"
-        TEXT target_surface "mobile|desktop|ar|projector|building"
     }
 
     state_intent {
@@ -145,50 +145,28 @@ erDiagram
         REAL strength
         REAL clarity
         INTEGER multiplicity
-        TEXT intent_contract_version
     }
 
-    state_scene {
+    state_temporal {
         TEXT state_id PK,FK
-        TEXT visual_contract_version
-        TEXT scene_contract_version
-        TEXT scene_graph_hash
-        REAL predicted_display_time_ms
+        REAL continuity_score
     }
 
-    state_biovision {
+    state_coherence {
         TEXT state_id PK,FK
-        TEXT env_class
-        REAL ambient_lux
-        REAL motion_score
-        REAL occlusion_score
+        REAL coherence_score
     }
 
-    state_governor {
+    state_entropy {
+        TEXT state_id PK,FK
+        REAL entropy_score
+    }
+
+    state_gate {
         TEXT state_id PK,FK
         INTEGER allowed
-        REAL max_nits
-        TEXT curfew_window
-        TEXT geo_zone
         TEXT action
         TEXT reason
-    }
-
-    state_prgx {
-        TEXT state_id PK,FK
-        INTEGER policy_pass
-        TEXT policy_version
-        TEXT abuse_flags
-        TEXT enforcement_action
-    }
-
-    state_transport {
-        TEXT state_id PK,FK
-        TEXT stream_id
-        INTEGER seq_no
-        REAL e2e_latency_ms
-        REAL jitter_ms
-        INTEGER dedupe_applied
     }
 
     state_lineage {
@@ -196,24 +174,13 @@ erDiagram
         TEXT child_state_id PK,FK
     }
 
-    audit_event {
-        TEXT event_id PK
-        TEXT state_id FK
-        TEXT actor
-        TEXT event_type
-        REAL event_ts
-        TEXT payload_hash
-    }
-
     state_snapshot ||--|| state_intent : "has intent"
-    state_snapshot ||--|| state_scene : "has scene plan"
-    state_snapshot ||--|| state_biovision : "has env adaptation"
-    state_snapshot ||--|| state_governor : "has safety decision"
-    state_snapshot ||--|| state_prgx : "has policy decision"
-    state_snapshot ||--|| state_transport : "has stream QoS"
+    state_snapshot ||--|| state_temporal : "has temporal continuity"
+    state_snapshot ||--|| state_coherence : "has coherence score"
+    state_snapshot ||--|| state_entropy : "has entropy score"
+    state_snapshot ||--|| state_gate : "has gate decision"
     state_snapshot ||--o{ state_lineage : "parent link"
     state_snapshot ||--o{ state_lineage : "child link"
-    state_snapshot ||--o{ audit_event : "emits"
 ```
 
 > หมายเหตุ: ส่วน "ข้อเสนอแนะที่ทำเสร็จแล้ว / Completed recommendations" ถูกลบออกเพื่อป้องกันการปะปนกับงานที่กำลังดำเนินการ.
