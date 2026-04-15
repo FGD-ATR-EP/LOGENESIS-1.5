@@ -1,6 +1,6 @@
 from collections import deque
 from dataclasses import dataclass
-from math import sqrt
+from math import isfinite, sqrt
 from typing import Sequence
 
 
@@ -23,8 +23,6 @@ class PhysicsIntervention:
     inertia_mod: float = 1.0  # ตัวคูณความดื้อ
     decay_mod: float = 1.0  # ตัวคูณการเย็นลง
     potential_dampener: float = 1.0  # ตัวคูณลดพลังงานสะสม
-
-# --- LAYER A: Pre-Resonance Sentry (Input Sanity) ---
 
 # --- LAYER A: Pre-Resonance Sentry (Input Sanity) ---
 
@@ -53,8 +51,6 @@ class PreResonanceSentry:
 
 # --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
 
-# --- LAYER B: Post-Mapper Sentry (Vector Ethics) ---
-
 class PostMapperSentry:
     def audit(
         self,
@@ -67,7 +63,11 @@ class PostMapperSentry:
         คืนค่า: (Modified Vector, Modified Urgency)
         """
         # Copy เพื่อไม่กระทบต้นฉบับถ้าไม่จำเป็น
-        safe_vec = [float(value) for value in vector]
+        # และ sanitize ค่า NaN/Inf เพื่อไม่ให้คำนวณต่อแบบผิดปกติ
+        safe_vec = []
+        for value in vector:
+            scalar = float(value)
+            safe_vec.append(scalar if isfinite(scalar) else 0.0)
         safe_urgency = float(urgency)
 
         # 1. Apply Layer A Flags (จัดการผลจาก Layer A ก่อน)
@@ -110,8 +110,6 @@ class PostMapperSentry:
 
 # --- LAYER C: Entropy Governor (Homeostasis) ---
 
-# --- LAYER C: Entropy Governor (Homeostasis) ---
-
 class EntropyGovernor:
     def __init__(self, history_len=5):
         self.entropy_history = deque(maxlen=history_len)
@@ -143,8 +141,6 @@ class EntropyGovernor:
 
 # --- THE UNIFIED PROTOCOL INTERFACE ---
 
-# --- THE UNIFIED PROTOCOL INTERFACE ---
-
 class PorisjemSystem:
     def __init__(self):
         self.layer_a = PreResonanceSentry()
@@ -154,8 +150,14 @@ class PorisjemSystem:
     def scan_input(self, text: str) -> SentryFlags:
         return self.layer_a.audit(text)
 
-    def sanitize_signal(self, vector, urgency, flags):
-        return self.layer_b.audit(vector, urgency, flags)
+    def sanitize_signal(
+        self,
+        vector: Sequence[float],
+        urgency: float,
+        flags: SentryFlags | None = None,
+    ) -> tuple[tuple[float, ...], float]:
+        effective_flags = flags if flags is not None else SentryFlags()
+        return self.layer_b.audit(vector, urgency, effective_flags)
 
-    def govern_core(self, entropy, potential):
+    def govern_core(self, entropy: float, potential: float) -> PhysicsIntervention:
         return self.layer_c.govern(entropy, potential)
