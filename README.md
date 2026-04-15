@@ -183,11 +183,9 @@ erDiagram
     state_snapshot ||--o{ state_lineage : "child link"
 ```
 
-> หมายเหตุ: ส่วน "ข้อเสนอแนะที่ทำเสร็จแล้ว / Completed recommendations" ถูกลบออกเพื่อป้องกันการปะปนกับงานที่กำลังดำเนินการ.
-
 ---
 
-## Dataflow & Controlflow
+## Data Flow & Control Flow
 
 ### Path A: Voice/Intent → Genesis → Manifest → Tachyon/Edge → Output
 
@@ -197,7 +195,7 @@ erDiagram
 4. Governor + PRGX pre-check safety and policy eligibility.
 5. Tachyon assigns stream sequence + timestamp + predicted display time.
 6. Edge/WASM composes per-device output and renders/project.
-7. State snapshot + audit events are persisted for replay/forensics.
+7. State snapshots and audit events are persisted for replay and forensics.
 
 ### Path B: BioVision → Governor/PRGX → Manifest/Tachyon
 
