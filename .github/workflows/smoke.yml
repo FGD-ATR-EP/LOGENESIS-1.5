@@ -1,0 +1,30 @@
+name: Runtime Smoke Check
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .[dev]
+
+      - name: Validate core imports and orchestrator run
+        run: |
+          python -c "from logenesis.runtime.orchestrator import TurnOrchestrator; o=TurnOrchestrator(); out=o.run_turn('ci','hello'); assert 'answer' in out and 'route' in out"
